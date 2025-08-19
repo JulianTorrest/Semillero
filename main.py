@@ -1,160 +1,227 @@
 import streamlit as st
 import random
+import spacy
 
-# --- 1. Base de Conocimientos ---
-# Aquí se almacenan las preguntas y respuestas para el chatbot y los exámenes.
-
-# Para preguntas y respuestas del chatbot (modo de texto libre)
+# --- 1. Base de Conocimientos (con más detalle) ---
 conocimiento_chatbot = {
-    "cartera": "La cartera de clientes es el conjunto de clientes activos y potenciales que una empresa ha cultivado a lo largo del tiempo. Es el activo más valioso de una organización.",
-    "gestion de cartera": "La gestión de cartera se refiere a las estrategias y procesos para administrar eficientemente las relaciones con los clientes, maximizando su valor a largo plazo y su fidelidad. Incluye la segmentación de clientes, la personalización de la comunicación y la resolución de problemas.",
-    "clientes conflictivos": "Para manejar clientes conflictivos, es fundamental mantener la calma y una actitud profesional. Las mejores estrategias son: escuchar activamente la queja del cliente, mostrar empatía, no tomar la crítica como algo personal y proponer soluciones concretas y rápidas. El objetivo es convertir una mala experiencia en una oportunidad para fortalecer la relación.",
-    "fidelizacion": "La fidelización de clientes es el conjunto de técnicas para lograr que un cliente regular se convierta en un cliente leal a largo plazo. Las tácticas incluyen programas de recompensas, excelente servicio al cliente, comunicación personalizada y el seguimiento post-venta.",
-    "cierre de ventas": "El cierre de ventas es la etapa final del proceso de ventas, donde el vendedor guía al cliente a tomar la decisión de compra. Hay varias técnicas de cierre, como el 'cierre por asunción', donde se asume que el cliente ya decidió comprar y se avanza a los detalles de pago."
+    "cartera": {
+        "palabras_clave": ["cartera", "clientes"],
+        "respuesta": "La cartera de clientes es el activo más valioso de una empresa, compuesto por todos los clientes actuales y potenciales. Una gestión eficaz permite no solo retenerlos, sino también maximizar su valor a lo largo del tiempo."
+    },
+    "gestion de cartera": {
+        "palabras_clave": ["gestión", "manejo", "administracion de cartera"],
+        "respuesta": "La gestión de cartera implica una serie de estrategias para administrar la relación con los clientes. Esto incluye la segmentación, la personalización de la comunicación, la optimización de los ciclos de vida del cliente y la resolución proactiva de sus problemas."
+    },
+    "clientes conflictivos": {
+        "palabras_clave": ["conflictivos", "dificiles", "queja", "insatisfaccion"],
+        "respuesta": "Manejar a un cliente conflictivo requiere inteligencia emocional y profesionalidad. Las mejores prácticas incluyen escuchar activamente, validar sus sentimientos, no tomar la crítica como algo personal y, finalmente, ofrecer una solución justa y rápida para reconstruir la confianza."
+    },
+    "fidelizacion": {
+        "palabras_clave": ["fidelizacion", "lealtad", "retencion", "retener clientes"],
+        "respuesta": "La fidelización de clientes se centra en convertir a compradores ocasionales en embajadores de la marca. Esto se logra a través de un servicio excepcional, programas de lealtad, comunicación personalizada y un seguimiento post-venta que demuestre que su relación es valorada."
+    },
+    "cierre de ventas": {
+        "palabras_clave": ["cierre de ventas", "cerrar trato", "negociacion"],
+        "respuesta": "El cierre de ventas es el punto culminante del ciclo de ventas. No se trata solo de conseguir la firma, sino de asegurar que el cliente se sienta seguro y satisfecho con su decisión. Técnicas como el 'cierre por asunción' o el 'cierre de la pregunta' son muy útiles para guiar al cliente a la acción."
+    }
 }
 
-# Para los exámenes de evaluación (opción múltiple)
 examenes = {
     "dificultad_baja": [
         {
-            "pregunta": "¿Qué es la fidelización de clientes?",
-            "opciones": ["A) Aumentar los precios de los productos.", "B) El conjunto de técnicas para lograr la lealtad de un cliente.", "C) La creación de nuevos productos."],
-            "respuesta_correcta": "B"
+            "tipo": "opcion_multiple",
+            "pregunta": "¿Cuál es el principal objetivo de la gestión de cartera?",
+            "opciones": ["A) Vender nuevos productos.", "B) Maximizar el valor de los clientes a largo plazo.", "C) Reducir costos de marketing."],
+            "respuesta_correcta": "B",
+            "explicacion": "El objetivo principal no es solo vender, sino construir relaciones duraderas que maximicen el valor total que un cliente aporta a la empresa."
         },
         {
-            "pregunta": "¿Cuál es un beneficio clave de una buena gestión de cartera?",
-            "opciones": ["A) Aumenta la rotación del personal.", "B) Incrementa la fidelidad del cliente.", "C) Reduce el número de productos."],
-            "respuesta_correcta": "B"
+            "tipo": "opcion_multiple",
+            "pregunta": "¿Qué es la fidelización de clientes?",
+            "opciones": ["A) Un programa de descuentos.", "B) El conjunto de técnicas para lograr la lealtad de un cliente.", "C) La venta de nuevos productos a clientes existentes."],
+            "respuesta_correcta": "B",
+            "explicacion": "La fidelización es una estrategia a largo plazo para construir una relación sólida que incentive la lealtad del cliente."
         }
     ],
     "dificultad_media": [
         {
+            "tipo": "opcion_multiple",
             "pregunta": "¿Qué estrategia es efectiva para un cliente que expresa insatisfacción?",
-            "opciones": ["A) Ignorar su queja.", "B) Ofrecerle un descuento inmediatamente.", "C) Escuchar activamente y mostrar empatía."],
-            "respuesta_correcta": "C"
+            "opciones": ["A) Ignorar su queja.", "B) Escuchar activamente y mostrar empatía.", "C) Ofrecerle un descuento sin escucharlo."],
+            "respuesta_correcta": "B",
+            "explicacion": "La empatía y la escucha activa son el primer paso para desactivar la situación y encontrar una solución adecuada."
         },
         {
-            "pregunta": "¿Qué significa el 'cierre de ventas por asunción'?",
-            "opciones": ["A) Dar por terminada la conversación.", "B) Asumir que el cliente ya compró y continuar con los siguientes pasos.", "C) Asumir la deuda del cliente."],
-            "respuesta_correcta": "B"
+            "tipo": "texto_libre",
+            "pregunta": "Describe brevemente cómo la gestión de cartera puede ayudar a una empresa a crecer."
         }
     ],
     "dificultad_alta": [
         {
+            "tipo": "opcion_multiple",
             "pregunta": "¿Cuál es la principal diferencia entre un cliente satisfecho y uno leal?",
-            "opciones": ["A) El cliente leal compra más a menudo.", "B) El cliente satisfecho vuelve a comprar, pero el cliente leal también recomienda la marca y es menos sensible al precio.", "C) No hay diferencia, son lo mismo."],
-            "respuesta_correcta": "B"
+            "opciones": ["A) El cliente leal compra más a menudo.", "B) El cliente leal no es sensible al precio y recomienda la marca, a diferencia del satisfecho.", "C) No hay diferencia, son el mismo concepto."],
+            "respuesta_correcta": "B",
+            "explicacion": "La lealtad va más allá de la satisfacción. Un cliente leal es un promotor de la marca y es más resistente a las ofertas de la competencia."
+        },
+        {
+            "tipo": "texto_libre",
+            "pregunta": "Explica la importancia de la 'segmentación de clientes' en la gestión de cartera y cómo se puede aplicar."
         }
     ]
 }
 
-# --- 2. Configuración Inicial de la Aplicación y del Estado de la Sesión ---
-st.set_page_config(page_title="Gestión de Cartera IA", layout="wide")
+# --- 2. Configuración de la Aplicación y del Estado de la Sesión ---
+st.set_page_config(page_title="Asistente de Gestión de Cartera", layout="wide", initial_sidebar_state="expanded")
 
-# Inicializar variables de estado para mantener la información entre interacciones del usuario
+# Inicializar spacy una sola vez
+@st.cache_resource
+def load_spacy_model():
+    try:
+        nlp = spacy.load("es_core_news_sm")
+        return nlp
+    except OSError:
+        st.error("El modelo de spaCy 'es_core_news_sm' no está instalado. Por favor, ejecuta 'python -m spacy download es_core_news_sm' en tu terminal.")
+        st.stop()
+nlp = load_spacy_model()
+
 if 'modo' not in st.session_state:
-    st.session_state.modo = 'chatbot'
+    st.session_state.modo = 'inicio'
 if 'puntuacion' not in st.session_state:
     st.session_state.puntuacion = 0
 if 'pregunta_actual' not in st.session_state:
     st.session_state.pregunta_actual = 0
 if 'preguntas_examen' not in st.session_state:
     st.session_state.preguntas_examen = []
+if 'respuestas_usuario' not in st.session_state:
+    st.session_state.respuestas_usuario = {}
 
 # --- 3. Funciones de Lógica de la Aplicación ---
-
 def cambiar_modo(nuevo_modo):
-    """Cambia el modo de la aplicación y reinicia el estado."""
     st.session_state.modo = nuevo_modo
     st.session_state.puntuacion = 0
     st.session_state.pregunta_actual = 0
+    st.session_state.preguntas_examen = []
+    st.session_state.respuestas_usuario = {}
 
 def iniciar_examen(dificultad):
-    """Selecciona las preguntas del examen y cambia al modo de examen."""
     preguntas_seleccionadas = examenes.get(dificultad, [])
-    # Mezcla las preguntas para que el orden cambie en cada intento
     random.shuffle(preguntas_seleccionadas)
     st.session_state.preguntas_examen = preguntas_seleccionadas
     cambiar_modo('examen_en_curso')
 
-def procesar_respuesta_examen(respuesta_usuario, respuesta_correcta):
-    """Compara la respuesta del usuario con la correcta y actualiza la puntuación."""
-    if respuesta_usuario == respuesta_correcta:
+def procesar_respuesta_opcion_multiple(respuesta_usuario, pregunta_info):
+    st.session_state.respuestas_usuario[st.session_state.pregunta_actual] = respuesta_usuario
+    if respuesta_usuario == pregunta_info["respuesta_correcta"]:
         st.session_state.puntuacion += 1
         st.success("¡Respuesta correcta! 🎉")
     else:
-        st.error(f"Respuesta incorrecta. La respuesta correcta es {respuesta_correcta}.")
-    
-    # Avanza a la siguiente pregunta
+        st.error(f"Respuesta incorrecta. La respuesta correcta es {pregunta_info['respuesta_correcta']}.")
+        with st.expander("Ver explicación"):
+            st.info(pregunta_info["explicacion"])
     st.session_state.pregunta_actual += 1
-    # Vuelve a ejecutar la página para mostrar la siguiente pregunta
-    st.experimental_rerun()
 
+def procesar_respuesta_texto_libre(respuesta_usuario):
+    st.session_state.respuestas_usuario[st.session_state.pregunta_actual] = respuesta_usuario
+    st.info("Gracias por tu respuesta. Tu respuesta será revisada por el evaluador.")
+    st.session_state.pregunta_actual += 1
+    
 # --- 4. Interfaz de Usuario Principal (UI) ---
 st.title("Asistente de Gestión de Cartera y Clientes")
 st.markdown("---")
 
-# Barra lateral para navegar entre modos
+# Menú principal en la barra lateral
 st.sidebar.header("Menú Principal")
-if st.sidebar.button("Chatbot (Preguntas Libres)"):
+if st.sidebar.button("🏠 Inicio"):
+    cambiar_modo('inicio')
+if st.sidebar.button("🗣️ Chatbot"):
     cambiar_modo('chatbot')
-if st.sidebar.button("Realizar Examen"):
+if st.sidebar.button("✍️ Examen"):
     cambiar_modo('seleccion_examen')
 
-# Lógica principal basada en el estado de la sesión
-if st.session_state.modo == 'chatbot':
-    st.header("Modo Chatbot")
-    st.write("Escribe una pregunta sobre temas de cartera, clientes o gestión.")
+if st.session_state.modo == 'inicio':
+    st.header("Bienvenido a tu Asistente de Formación")
+    st.write("Selecciona una opción del menú para comenzar:")
+    st.info("🗣️ **Chatbot**: Responde preguntas sobre gestión de cartera y clientes.")
+    st.success("✍️ **Examen**: Evalúa tus conocimientos con pruebas de diferentes dificultades.")
+
+elif st.session_state.modo == 'chatbot':
+    st.header("🗣️ Modo Chatbot: Preguntas Libres")
+    st.write("Haz una pregunta sobre **gestión de cartera, clientes conflictivos, fidelización** y más.")
     pregunta_usuario = st.text_input("Tu pregunta:", key="chat_input")
     
     if pregunta_usuario:
-        respuesta = "Lo siento, no tengo información sobre ese tema. Intenta con 'cartera', 'clientes conflictivos' o 'fidelización'."
-        
-        # Búsqueda simple de palabras clave para encontrar la respuesta adecuada
-        for palabra_clave, resp_predefinida in conocimiento_chatbot.items():
-            if palabra_clave in pregunta_usuario.lower():
-                respuesta = resp_predefinida
+        doc = nlp(pregunta_usuario.lower())
+        respuesta_encontrada = False
+        for tema, info in conocimiento_chatbot.items():
+            for palabra in info["palabras_clave"]:
+                if doc.similarity(nlp(palabra)) > 0.6:  # Usa similitud de spaCy
+                    st.info(info["respuesta"])
+                    respuesta_encontrada = True
+                    break
+            if respuesta_encontrada:
                 break
         
-        st.info(respuesta)
+        if not respuesta_encontrada:
+            st.warning("Lo siento, no tengo una respuesta detallada para eso. Intenta con un tema más específico como 'fidelización' o 'cierre de ventas'.")
 
 elif st.session_state.modo == 'seleccion_examen':
-    st.header("Selecciona la Dificultad del Examen")
+    st.header("✍️ Selecciona la Dificultad del Examen")
+    st.markdown("Elige el nivel para comenzar tu evaluación.")
     col1, col2, col3 = st.columns(3)
-    if col1.button("Dificultad Baja"):
-        iniciar_examen("dificultad_baja")
-    if col2.button("Dificultad Media"):
-        iniciar_examen("dificultad_media")
-    if col3.button("Dificultad Alta"):
-        iniciar_examen("dificultad_alta")
+    with col1:
+        if st.button("Dificultad Baja 🟢", use_container_width=True):
+            iniciar_examen("dificultad_baja")
+    with col2:
+        if st.button("Dificultad Media 🟡", use_container_width=True):
+            iniciar_examen("dificultad_media")
+    with col3:
+        if st.button("Dificultad Alta 🔴", use_container_width=True):
+            iniciar_examen("dificultad_alta")
 
 elif st.session_state.modo == 'examen_en_curso':
-    st.header("Examen de Conocimientos")
+    st.header("✍️ Examen de Conocimientos")
     
-    # Mostrar la pregunta actual si aún hay preguntas
     if st.session_state.pregunta_actual < len(st.session_state.preguntas_examen):
         pregunta = st.session_state.preguntas_examen[st.session_state.pregunta_actual]
+        st.subheader(f"Pregunta {st.session_state.pregunta_actual + 1}: {pregunta['pregunta']}")
+
+        if pregunta["tipo"] == "opcion_multiple":
+            opciones_elegidas = st.radio("Elige una opción:", pregunta["opciones"], key=f"radio_{st.session_state.pregunta_actual}")
+            if st.button("Responder", key=f"btn_responder_{st.session_state.pregunta_actual}"):
+                opcion_elegida = opciones_elegidas.split(')')[0]
+                procesar_respuesta_opcion_multiple(opcion_elegida, pregunta)
         
-        st.subheader(f"Pregunta {st.session_state.pregunta_actual + 1}:")
-        st.write(pregunta["pregunta"])
-        
-        # Mostrar las opciones de respuesta como radio buttons
-        opciones_elegidas = st.radio("Elige una opción:", pregunta["opciones"], key=f"radio_{st.session_state.pregunta_actual}")
-        
-        # Botón para enviar la respuesta
-        if st.button("Responder", key=f"btn_responder_{st.session_state.pregunta_actual}"):
-            # Extrae solo la letra de la opción elegida (A, B, C)
-            opcion_elegida = opciones_elegidas.split(')')[0]
-            procesar_respuesta_examen(opcion_elegida, pregunta["respuesta_correcta"])
+        elif pregunta["tipo"] == "texto_libre":
+            respuesta_usuario = st.text_area("Escribe tu respuesta aquí:", key=f"text_area_{st.session_state.pregunta_actual}", height=200)
+            if st.button("Enviar Respuesta", key=f"btn_enviar_{st.session_state.pregunta_actual}"):
+                procesar_respuesta_texto_libre(respuesta_usuario)
 
     else:
-        # Examen finalizado
-        st.header("Examen Finalizado")
+        st.header("✅ Examen Finalizado")
         puntuacion_final = st.session_state.puntuacion
-        total_preguntas = len(st.session_state.preguntas_examen)
-        
-        st.metric(label="Tu puntuación final", value=f"{puntuacion_final} de {total_preguntas}")
+        preguntas_correctas = len([p for p in st.session_state.respuestas_usuario.values() if p in "ABC"])
+        total_preguntas_multiples = len([p for p in st.session_state.preguntas_examen if p["tipo"] == "opcion_multiple"])
+
+        st.metric(label="Tu puntuación final (Preguntas de Opción Múltiple)", value=f"{puntuacion_final} de {total_preguntas_multiples}")
         st.balloons()
-        
+
+        st.subheader("Revisión del Examen")
+        with st.expander("Ver respuestas incorrectas"):
+            for i, pregunta_info in enumerate(st.session_state.preguntas_examen):
+                if pregunta_info["tipo"] == "opcion_multiple":
+                    respuesta_correcta = pregunta_info["respuesta_correcta"]
+                    respuesta_dada = st.session_state.respuestas_usuario.get(i)
+                    if respuesta_dada != respuesta_correcta:
+                        st.error(f"Pregunta {i + 1}: {pregunta_info['pregunta']}")
+                        st.write(f"Tu respuesta: **{respuesta_dada}**")
+                        st.write(f"Respuesta correcta: **{respuesta_correcta}**")
+                        st.info(f"Explicación: {pregunta_info['explicacion']}")
+                elif pregunta_info["tipo"] == "texto_libre":
+                    respuesta_dada = st.session_state.respuestas_usuario.get(i)
+                    st.warning(f"Pregunta {i + 1}: {pregunta_info['pregunta']}")
+                    st.write("Tu respuesta:")
+                    st.markdown(f"```\n{respuesta_dada}\n```")
+
         if st.button("Volver a iniciar examen"):
             cambiar_modo('seleccion_examen')
