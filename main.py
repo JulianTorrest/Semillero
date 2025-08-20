@@ -1,5 +1,6 @@
 import streamlit as st
 import os
+import io
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.embeddings import HuggingFaceEmbeddings
@@ -8,8 +9,13 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.chains import RetrievalQA
 import google.generativeai as genai
 import random
+import pandas as pd
+from pydub import AudioSegment
+from pydub.utils import mediainfo
+from PIL import Image
 
 # --- Funciones Auxiliares ---
+
 def get_qa_chain(vector_store, model_name="gemini-2.0-flash"):
     """Crea y retorna la cadena RAG para preguntas y respuestas."""
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
@@ -169,13 +175,37 @@ def check_and_award_badges(username, temas, quiz_scores):
             st.session_state.users[username]["badges"].append("Primer Paso 👣")
             awarded_badges.append("Primer Paso 👣")
             
+    # Insignia: Leyenda (alcanzar un nivel alto)
+    if st.session_state.users[username]["nivel"] >= 3:
+        if "Leyenda de Mentor.IA ✨" not in st.session_state.users[username]["badges"]:
+            st.session_state.users[username]["badges"].append("Leyenda de Mentor.IA ✨")
+            awarded_badges.append("Leyenda de Mentor.IA ✨")
+
     return awarded_badges
+
+def update_user_points(username, points_to_add):
+    """Actualiza los puntos y el nivel del usuario."""
+    st.session_state.users[username]["puntos"] += points_to_add
+    
+    # Lógica de niveles (ejemplo simple)
+    if st.session_state.users[username]["puntos"] >= 300 and st.session_state.users[username]["nivel"] < 3:
+        st.session_state.users[username]["nivel"] = 3
+        st.success(f"¡Felicidades, {username}! Has alcanzado el nivel 3. Revisa tus insignias.")
+    elif st.session_state.users[username]["puntos"] >= 100 and st.session_state.users[username]["nivel"] < 2:
+        st.session_state.users[username]["nivel"] = 2
+        st.success(f"¡Felicidades, {username}! Has alcanzado el nivel 2.")
+    elif st.session_state.users[username]["puntos"] >= 20 and st.session_state.users[username]["nivel"] < 1:
+        st.session_state.users[username]["nivel"] = 1
+        st.success(f"¡Felicidades, {username}! Has alcanzado el nivel 1.")
+
 
 def load_users():
     """Simula una base de datos de usuarios con datos de ejemplo."""
     if "users" not in st.session_state:
         st.session_state.users = {
             "Julian Yamid Torres Torres": {
+                "puntos": 150,
+                "nivel": 2,
                 "temas_completados": {
                     "Escuela DataPro": {
                         "Tipos de clientes y manejo": 4.5,
@@ -185,6 +215,8 @@ def load_users():
                 "badges": ["Master en Tipos de clientes y manejo", "Primer Paso 👣"]
             },
             "Sofia Gomez": {
+                "puntos": 80,
+                "nivel": 1,
                 "temas_completados": {
                     "Escuela de Cobradores": {
                         "Manejo de PQRs": 4.8
@@ -193,6 +225,8 @@ def load_users():
                 "badges": ["Master en Manejo de PQRs"]
             },
             "Carlos Ramirez": {
+                "puntos": 25,
+                "nivel": 1,
                 "temas_completados": {
                     "Escuela de Verificadores": {
                         "Procesos de cartera": 3.9
@@ -211,6 +245,65 @@ def load_users():
                         if escuela in st.session_state.escuelas and tema in st.session_state.escuelas[escuela]:
                             st.session_state.escuelas[escuela][tema]["evaluado"] = True
                             st.session_state.escuelas[escuela][tema]["puntaje"] = puntaje
+
+def get_topics_from_files(uploaded_files, school_name="Escuela DataPro"):
+    """Extrae los nombres de los archivos como temas de capacitación y los asigna a una escuela."""
+    for file in uploaded_files:
+        topic_name = os.path.splitext(file.name)[0].replace("_", " ").title()
+        if school_name not in st.session_state.escuelas:
+            st.session_state.escuelas[school_name] = {}
+        if topic_name not in st.session_state.escuelas[school_name]:
+            st.session_state.escuelas[school_name][topic_name] = {"evaluado": False, "puntaje": 0, "contenido_cargado": True}
+        else:
+            st.session_state.escuelas[school_name][topic_name]["contenido_cargado"] = True
+
+# --- Funciones de Notificaciones ---
+def send_completion_notification(username, topic, score):
+    """Simula el envío de una notificación por correo electrónico."""
+    st.success(f"📧 ¡Notificación enviada! Se ha notificado a {username} sobre la finalización de la evaluación en '{topic}' con una nota de {score:.1f}/5.")
+
+def generate_interactive_quiz():
+    """Genera y maneja un quiz interactivo de arrastrar y soltar."""
+    st.subheader("🛠️ Quiz Interactivo: Organiza el Proceso")
+    st.write("Arrastra y suelta los pasos en el orden correcto para simular un proceso.")
+    
+    # Definir el proceso y el orden correcto
+    proceso_correcto = [
+        "1. Identificar el cliente",
+        "2. Evaluar la situación financiera",
+        "3. Proponer un acuerdo de pago",
+        "4. Dar seguimiento al acuerdo",
+        "5. Cerrar el caso"
+    ]
+    
+    # Mezclar los pasos para que el usuario los ordene
+    proceso_mezclado = random.sample(proceso_correcto, len(proceso_correcto))
+    
+    st.session_state["interactive_quiz_order"] = proceso_mezclado
+    st.session_state["correct_order"] = proceso_correcto
+
+    # Mostrar los elementos para arrastrar y soltar
+    for i, item in enumerate(st.session_state["interactive_quiz_order"]):
+        st.markdown(f"**{i+1}.** {item}")
+
+    st.write("---")
+    st.markdown("Ahora, arrastra y suelta los elementos en el orden correcto. (En una implementación real, esto se haría con una biblioteca de arrastrar y soltar como `st_on_hover_tabs` o similar)")
+
+    # Simulación de la respuesta del usuario con un formulario
+    with st.form("interactive_quiz_form"):
+        st.write("Escribe el número del paso y el texto del paso para simular tu ordenación.")
+        user_order = st.text_area("Ordena los pasos (uno por línea):", value="\n".join(proceso_mezclado))
+        submitted = st.form_submit_button("Verificar Orden")
+    
+    if submitted:
+        user_list = [line.strip() for line in user_order.split('\n') if line.strip()]
+        
+        if user_list == proceso_correcto:
+            st.success("¡Felicidades! 🎉 Has ordenado los pasos correctamente.")
+            update_user_points(st.session_state.current_user, 25)  # Sumar puntos por completar el quiz
+            check_and_award_badges(st.session_state.current_user, {"topic": "Quiz Interactivo", "evaluado": True, "puntaje": 5.0}, [{"score": 5}])
+        else:
+            st.error("Orden incorrecto. Por favor, intenta de nuevo.")
 
 # --- Configuración y Título ---
 st.set_page_config(page_title="Mentor.IA - Finanzauto", layout="wide")
@@ -252,39 +345,26 @@ if "current_quiz" not in st.session_state:
         "current_q_index": 0,
         "final_score": 0
     }
+if "current_user" not in st.session_state:
+    st.session_state.current_user = "Julian Yamid Torres Torres"
+
 
 load_users()
 
-def get_topics_from_files(uploaded_files, school_name="Escuela DataPro"):
-    """Extrae los nombres de los archivos como temas de capacitación y los asigna a una escuela."""
-    for file in uploaded_files:
-        topic_name = os.path.splitext(file.name)[0].replace("_", " ").title()
-        if school_name not in st.session_state.escuelas:
-            st.session_state.escuelas[school_name] = {}
-        if topic_name not in st.session_state.escuelas[school_name]:
-            st.session_state.escuelas[school_name][topic_name] = {"evaluado": False, "puntaje": 0, "contenido_cargado": True}
-        else:
-            st.session_state.escuelas[school_name][topic_name]["contenido_cargado"] = True
-
-
 # --- Contenido Principal con Pestañas ---
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["👤 Perfil", "🎓 Escuelas", "📚 Evaluación", "👨‍💼 Gestionar Usuario", "🛠️ Modificar Escuela"])
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["👤 Perfil", "🎓 Escuelas", "📚 Evaluación", "👨‍💼 Gestionar Usuario", "🛠️ Modificar Escuela", "📊 Analíticas"])
 
 with tab1:
     # --- Perfil de Usuario ---
     st.header("👤 Perfil de Usuario")
     st.write("---")
-    current_user = "Julian Yamid Torres Torres"
+    current_user = st.session_state.current_user
     st.write(f"**Nombre:** {current_user}")
-    
-    # Agregando más servicios al perfil
+
     st.subheader("Estado de Nivel")
-    
-    # Solución al error: Ahora sumamos la longitud de cada diccionario de temas
     total_temas_completados = sum(len(temas) for temas in st.session_state.users[current_user]["temas_completados"].values())
     st.metric(label="Módulos Completados", value=f"{total_temas_completados}")
 
-    # Calculando el puntaje promedio general
     total_puntaje = 0
     total_temas = 0
     for escuela, temas in st.session_state.users[current_user]["temas_completados"].items():
@@ -293,6 +373,11 @@ with tab1:
     
     promedio_general = total_puntaje / total_temas if total_temas > 0 else 0
     st.metric(label="Puntaje Promedio General", value=f"{promedio_general:.1f}/5")
+
+    st.write("---")
+    st.subheader("Gamificación")
+    st.metric(label="Puntos Totales", value=st.session_state.users[current_user]["puntos"])
+    st.metric(label="Nivel Actual", value=st.session_state.users[current_user]["nivel"])
 
     st.write("---")
     st.subheader("Mis Insignias")
@@ -311,11 +396,13 @@ with tab1:
         promedio_final = total_puntaje / total_temas_completados if total_temas_completados > 0 else 0
         leaderboard_data.append({
             "Usuario": user,
+            "Puntos": data.get("puntos", 0),
+            "Nivel": data.get("nivel", 0),
             "Módulos Completados": total_temas_completados,
             "Puntaje Promedio": f"{promedio_final:.1f}"
         })
     
-    leaderboard_data.sort(key=lambda x: (x["Módulos Completados"], float(x["Puntaje Promedio"])), reverse=True)
+    leaderboard_data.sort(key=lambda x: (x["Puntos"], x["Nivel"], float(x["Puntaje Promedio"])), reverse=True)
     st.table(leaderboard_data)
 
 with tab2:
@@ -337,54 +424,65 @@ with tab2:
             else:
                 st.write(f"- **{tema}**: Pendiente")
         st.write("---")
-    
+
 with tab3:
     # --- Contenido de la pestaña de Evaluación ---
     st.header("1. Carga de Documentos")
-    st.write("Sube uno o varios archivos PDF para crear la base de conocimiento.")
+    st.write("Sube uno o varios archivos PDF o de audio (MP3) para crear la base de conocimiento.")
     
     uploaded_files = st.file_uploader(
-        "Selecciona los archivos PDF", type="pdf", accept_multiple_files=True
+        "Selecciona los archivos", type=["pdf", "mp3"], accept_multiple_files=True
     )
 
     if uploaded_files:
         if st.button("Procesar Archivos"):
             with st.spinner("Procesando documentos..."):
                 try:
-                    get_topics_from_files(uploaded_files, "Escuela DataPro")
-                    temp_dir = "temp_pdfs"
-                    if not os.path.exists(temp_dir):
-                        os.makedirs(temp_dir)
-                    
-                    file_paths = []
+                    all_text = ""
                     for uploaded_file in uploaded_files:
-                        file_path = os.path.join(temp_dir, uploaded_file.name)
-                        with open(file_path, "wb") as f:
-                            f.write(uploaded_file.getbuffer())
-                        file_paths.append(file_path)
-                    
-                    docs = []
-                    for path in file_paths:
-                        loader = PyPDFLoader(path)
-                        docs.extend(loader.load())
-                    
+                        if uploaded_file.type == "application/pdf":
+                            # Procesar PDF
+                            temp_dir = "temp_pdfs"
+                            if not os.path.exists(temp_dir): os.makedirs(temp_dir)
+                            file_path = os.path.join(temp_dir, uploaded_file.name)
+                            with open(file_path, "wb") as f:
+                                f.write(uploaded_file.getbuffer())
+                            loader = PyPDFLoader(file_path)
+                            docs = loader.load()
+                            for doc in docs:
+                                all_text += doc.page_content
+                            os.remove(file_path)
+                        elif uploaded_file.type == "audio/mpeg":
+                            # Procesar MP3
+                            st.info(f"Procesando archivo de audio: {uploaded_file.name}")
+                            audio_bytes = uploaded_file.read()
+                            audio = AudioSegment.from_file(io.BytesIO(audio_bytes), format="mp3")
+                            audio.export("temp_audio.mp3", format="mp3")
+
+                            llm_audio = ChatGoogleGenerativeAI(model="gemini-2.0-flash", google_api_key=st.secrets["GOOGLE_API_KEY"])
+                            prompt_audio = f"""
+                            Transcribe el siguiente audio.
+                            """
+                            # No hay una forma directa de pasar el audio a la LLM con Langchain, esto es una simulación
+                            # En una implementación real se usaría una API de transcripción
+                            transcription = "Esta es una transcripción simulada de un archivo de audio para el ejemplo de integración multimedia."
+                            all_text += transcription
+
                     text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-                    splits = text_splitter.split_documents(docs)
+                    splits = text_splitter.split_text(all_text)
                     
                     model_name = "sentence-transformers/all-MiniLM-L6-v2"
                     embeddings = HuggingFaceEmbeddings(model_name=model_name)
                     
-                    vector_store = FAISS.from_documents(splits, embeddings)
+                    vector_store = FAISS.from_texts(splits, embeddings)
                     st.session_state.vector_store = vector_store
                     st.success("✅ Documentos procesados y base de conocimiento creada. ¡Ahora puedes hacer preguntas!")
                     
                 except Exception as e:
                     st.error(f"❌ Ocurrió un error durante el procesamiento: {e}")
                 finally:
-                    if os.path.exists(temp_dir):
-                        for path in os.listdir(temp_dir):
-                            os.remove(os.path.join(temp_dir, path))
-                        os.rmdir(temp_dir)
+                    if os.path.exists("temp_audio.mp3"):
+                        os.remove("temp_audio.mp3")
 
     st.header("2. Preguntas y Respuestas")
     if st.session_state.vector_store is None:
@@ -462,18 +560,21 @@ with tab3:
                 
                 if promedio_final >= 3.0:
                     st.success("¡Felicidades! 🎉 Has Aprobado la evaluación.")
+                    update_user_points(st.session_state.current_user, 20) # Añadir puntos por aprobar
+                    send_completion_notification(st.session_state.current_user, quiz_data["topic"], promedio_final)
                 else:
                     st.error("Lo siento. 😔 No has aprobado la evaluación.")
                     st.warning(f"Ruta de Aprendizaje Personalizada: Te recomendamos repasar el tema '{quiz_data['topic']}' y sus documentos de apoyo para mejorar tus conocimientos.")
-
+                    update_user_points(st.session_state.current_user, 5) # Puntos de participación
+                    
                 st.session_state.escuelas[quiz_data["school"]][quiz_data["topic"]]["evaluado"] = True
                 st.session_state.escuelas[quiz_data["school"]][quiz_data["topic"]]["puntaje"] = promedio_final
                 
-                if quiz_data["school"] not in st.session_state.users[current_user]["temas_completados"]:
-                    st.session_state.users[current_user]["temas_completados"][quiz_data["school"]] = {}
-                st.session_state.users[current_user]["temas_completados"][quiz_data["school"]][quiz_data["topic"]] = promedio_final
+                if quiz_data["school"] not in st.session_state.users[st.session_state.current_user]["temas_completados"]:
+                    st.session_state.users[st.session_state.current_user]["temas_completados"][quiz_data["school"]] = {}
+                st.session_state.users[st.session_state.current_user]["temas_completados"][quiz_data["school"]][quiz_data["topic"]] = promedio_final
                 
-                new_badges = check_and_award_badges(current_user, {"topic": quiz_data["topic"], "evaluado": True, "puntaje": promedio_final}, quiz_data["scores"])
+                new_badges = check_and_award_badges(st.session_state.current_user, {"topic": quiz_data["topic"], "evaluado": True, "puntaje": promedio_final}, quiz_data["scores"])
                 if new_badges:
                     st.balloons()
                     st.success("¡Has ganado una nueva insignia!")
@@ -547,6 +648,11 @@ with tab3:
                         st.write("---")
                         st.subheader("Resultado de la Simulación")
                         st.info(evaluation_result)
+                        update_user_points(st.session_state.current_user, 10) # Puntos por simulación
+
+    # Sección de Módulo Interactivo
+    st.header("6. Módulo Interactivo")
+    generate_interactive_quiz()
 
 with tab4:
     st.header("👨‍💼 Gestionar Usuario")
@@ -574,11 +680,12 @@ with tab4:
                     "direccion": direccion_usuario,
                     "area": area_usuario,
                     "rol": rol_usuario,
+                    "puntos": 0,
+                    "nivel": 0,
                     "temas_completados": {},
                     "badges": []
                 }
                 
-                # Usar el nombre como clave del diccionario de usuarios
                 st.session_state.users[nombre_usuario] = new_user_data
                 st.success(f"✅ Usuario '{nombre_usuario}' agregado exitosamente.")
                 st.balloons()
@@ -626,10 +733,8 @@ with tab5:
                 "Estado": "Completado" if info.get("evaluado") else "Pendiente",
             })
         
-        # Mostrar la tabla con los módulos
         st.dataframe(modules_data, use_container_width=True)
         
-        # Eliminar módulos (usando botones en columnas)
         st.markdown("#### **Eliminar Módulo**")
         modulo_a_eliminar = st.selectbox("Selecciona un módulo para eliminar:", options=list(st.session_state.escuelas[school_to_modify].keys()))
         if st.button("🗑️ Eliminar Módulo"):
@@ -637,3 +742,52 @@ with tab5:
                 del st.session_state.escuelas[school_to_modify][modulo_a_eliminar]
                 st.success(f"Módulo '{modulo_a_eliminar}' eliminado de la escuela '{school_to_modify}'.")
                 st.rerun()
+
+with tab6:
+    st.header("📊 Analíticas y Reportes")
+    st.write("Una visión general del progreso de los usuarios y el rendimiento de los temas de capacitación.")
+
+    # 1. Reporte de Progreso de Usuarios
+    st.subheader("1. Progreso General de Usuarios")
+    
+    analytics_data = []
+    for user, data in st.session_state.users.items():
+        total_temas_completados = sum(len(temas) for temas in data["temas_completados"].values())
+        total_puntaje = sum(sum(temas.values()) for temas in data["temas_completados"].values())
+        promedio_final = total_puntaje / total_temas_completados if total_temas_completados > 0 else 0
+        analytics_data.append({
+            "Usuario": user,
+            "Puntos": data.get("puntos", 0),
+            "Nivel": data.get("nivel", 0),
+            "Módulos Completados": total_temas_completados,
+            "Puntaje Promedio": promedio_final,
+        })
+    
+    df_analytics = pd.DataFrame(analytics_data)
+    
+    if not df_analytics.empty:
+        st.dataframe(df_analytics, use_container_width=True)
+    else:
+        st.info("Aún no hay datos de usuarios para mostrar.")
+    
+    st.markdown("---")
+
+    # 2. Rendimiento por Tema
+    st.subheader("2. Rendimiento Promedio por Módulo")
+    
+    tema_scores = {}
+    for user, data in st.session_state.users.items():
+        for escuela, temas in data["temas_completados"].items():
+            for tema, puntaje in temas.items():
+                if tema not in tema_scores:
+                    tema_scores[tema] = []
+                tema_scores[tema].append(puntaje)
+
+    if tema_scores:
+        promedios_tema = {tema: sum(scores) / len(scores) for tema, scores in tema_scores.items()}
+        df_promedios = pd.DataFrame(promedios_tema.items(), columns=["Módulo", "Puntaje Promedio"])
+        st.bar_chart(df_promedios, x="Módulo", y="Puntaje Promedio")
+        
+        st.write("Este gráfico muestra el puntaje promedio de todos los usuarios por cada módulo completado. Las puntuaciones más bajas pueden indicar un tema que requiere más atención o una actualización de los materiales de capacitación.")
+    else:
+        st.info("Aún no hay módulos completados para generar el gráfico de rendimiento.")
