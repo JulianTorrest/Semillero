@@ -233,60 +233,24 @@ def get_topics_from_files(uploaded_files):
         # Asegurarse de que el tema cargado sea marcado como tal
         st.session_state.temas[topic_name]["contenido_cargado"] = True
 
-# --- Barra Lateral (Menú y Perfil de Usuario) ---
-with st.sidebar:
-    st.header("Menú Principal")
+
+# --- Contenido Principal con Pestañas ---
+tab1, tab2, tab3 = st.tabs(["👤 Perfil", "🎓 Escuelas", "📚 Evaluación"])
+
+with tab1:
+    # --- Perfil de Usuario ---
+    st.header("👤 Perfil de Usuario")
     st.write("---")
-
-    # Módulo 1: Perfil de Usuario
-    with st.expander("👤 **Perfil de Usuario**", expanded=True):
-        current_user = "Julian Yamid Torres Torres"
-        st.write(f"**Nombre:** {current_user}")
-        st.subheader("Mis Insignias")
-        if st.session_state.users[current_user]["badges"]:
-            for badge in st.session_state.users[current_user]["badges"]:
-                st.write(f"🏅 {badge}")
-        else:
-            st.write("Aún no tienes insignias. ¡Completa temas para ganar la primera!")
-        st.write("---")
-
-    # Módulo 2: Evaluación (Simplemente un título en el menú para guiar al usuario)
-    with st.expander("📚 **Evaluación**", expanded=False):
-        st.write("Ve al área de 'Escuela de Aprendizaje: Evaluación' para iniciar.")
-        st.write("---")
-
-    # Módulo 3: Escuelas
-    with st.expander("🎓 **Escuelas**", expanded=True):
-        st.subheader("Escuela: Cartera")
-        st.write("---")
-        
-        # Reporte de Avance
-        temas_evaluados = [t for t in st.session_state.temas.values() if t["evaluado"]]
-        total_temas = len(st.session_state.temas)
-        
-        if temas_evaluados:
-            promedio_finalizados = sum(t["puntaje"] for t in temas_evaluados) / len(temas_evaluados)
-        else:
-            promedio_finalizados = 0
-        st.metric(label="Calificación Promedio", value=f"{promedio_finalizados:.1f}/5")
-
-        temas_finalizados = len(temas_evaluados)
-        porcentaje_finalizado = (temas_finalizados / total_temas) * 100 if total_temas > 0 else 0
-        st.metric(label="Temas Finalizados", value=f"{temas_finalizados}/{total_temas}")
-        st.progress(porcentaje_finalizado / 100, text=f"{porcentaje_finalizado:.0f}% completado")
-        
-        st.write("---")
-
-        # Temas con calificación
-        st.subheader("Temas por Escuela")
-        for tema, data in st.session_state.temas.items():
-            if data["evaluado"]:
-                st.write(f"- {tema}: **{data['puntaje']:.1f}/5**")
-            else:
-                st.write(f"- {tema}: Pendiente")
-        
-        st.write("---")
-
+    current_user = "Julian Yamid Torres Torres"
+    st.write(f"**Nombre:** {current_user}")
+    st.subheader("Mis Insignias")
+    if st.session_state.users[current_user]["badges"]:
+        for badge in st.session_state.users[current_user]["badges"]:
+            st.write(f"🏅 {badge}")
+    else:
+        st.write("Aún no tienes insignias. ¡Completa temas para ganar la primera!")
+    st.write("---")
+    
     st.header("🏆 Tabla de Liderazgo")
     leaderboard_data = []
     for user, data in st.session_state.users.items():
@@ -300,222 +264,237 @@ with st.sidebar:
     
     leaderboard_data.sort(key=lambda x: (x["Temas Completados"], float(x["Puntaje Promedio"])), reverse=True)
     st.table(leaderboard_data)
+
+with tab2:
+    # --- Módulo de Escuelas ---
+    st.header("🎓 Escuela: Cartera")
+    st.write("---")
+    
+    # Reporte de Avance
+    st.subheader("Reporte de Avance")
+    temas_evaluados = [t for t in st.session_state.temas.values() if t["evaluado"]]
+    total_temas = len(st.session_state.temas)
+    
+    if temas_evaluados:
+        promedio_finalizados = sum(t["puntaje"] for t in temas_evaluados) / len(temas_evaluados)
+    else:
+        promedio_finalizados = 0
+    st.metric(label="Calificación Promedio", value=f"{promedio_finalizados:.1f}/5")
+
+    temas_finalizados = len(temas_evaluados)
+    porcentaje_finalizado = (temas_finalizados / total_temas) * 100 if total_temas > 0 else 0
+    st.metric(label="Temas Finalizados", value=f"{temas_finalizados}/{total_temas}")
+    st.progress(porcentaje_finalizado / 100, text=f"{porcentaje_finalizado:.0f}% completado")
+    
     st.write("---")
 
-# --- Sección de Bienvenida y Propósito ---
-st.markdown(
-    """
-    <div style="background-color:#003366; padding: 20px; border-radius: 10px; color:white;">
-        <h2 style="color:white; text-align:center;">
-            En Finanzauto creemos en el poder del aprendizaje continuo.
-        </h2>
-        <p style="text-align:center; font-size:18px;">
-            Por eso, creamos <b>Mentor.IA</b>, una plataforma innovadora que combina teoría, práctica e inteligencia artificial para potenciar tu desarrollo profesional. Tu Escuela de Aprendizaje será: <b>“Escuela DataPro”</b>.
-        </p>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
-st.write("")
-
-# --- Módulo de Carga de Documentos ---
-st.header("1. Carga de Documentos")
-st.write("Sube uno o varios archivos PDF para crear la base de conocimiento.")
-uploaded_files = st.file_uploader(
-    "Selecciona los archivos PDF", type="pdf", accept_multiple_files=True
-)
-
-if uploaded_files:
-    if st.button("Procesar Archivos"):
-        with st.spinner("Procesando documentos..."):
-            try:
-                get_topics_from_files(uploaded_files)
-                temp_dir = "temp_pdfs"
-                if not os.path.exists(temp_dir):
-                    os.makedirs(temp_dir)
-                
-                file_paths = []
-                for uploaded_file in uploaded_files:
-                    file_path = os.path.join(temp_dir, uploaded_file.name)
-                    with open(file_path, "wb") as f:
-                        f.write(uploaded_file.getbuffer())
-                    file_paths.append(file_path)
-                
-                docs = []
-                for path in file_paths:
-                    loader = PyPDFLoader(path)
-                    docs.extend(loader.load())
-                
-                text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-                splits = text_splitter.split_documents(docs)
-                
-                model_name = "sentence-transformers/all-MiniLM-L6-v2"
-                embeddings = HuggingFaceEmbeddings(model_name=model_name)
-                
-                vector_store = FAISS.from_documents(splits, embeddings)
-                st.session_state.vector_store = vector_store
-                st.success("✅ Documentos procesados y base de conocimiento creada. ¡Ahora puedes hacer preguntas!")
-                
-            except Exception as e:
-                st.error(f"❌ Ocurrió un error durante el procesamiento: {e}")
-            finally:
-                if os.path.exists(temp_dir):
-                    for path in os.listdir(temp_dir):
-                        os.remove(os.path.join(temp_dir, path))
-                    os.rmdir(temp_dir)
-
-# --- Módulo de Preguntas y Respuestas (Chat con Mentor.IA) ---
-st.header("2. Preguntas y Respuestas")
-if st.session_state.vector_store is None:
-    st.warning("Por favor, procesa los documentos primero para poder usar Mentor.IA.")
-else:
-    question = st.text_input("Haz tu pregunta a Mentor.IA:")
-    if question:
-        if st.button("Obtener Respuesta"):
-            with st.spinner("Mentor.IA está generando la respuesta..."):
-                try:
-                    rag_chain = get_qa_chain(st.session_state.vector_store)
-                    response = rag_chain.invoke(question)
-                    st.write("---")
-                    st.subheader("Respuesta de Mentor.IA:")
-                    st.write(response["result"])
-                except Exception as e:
-                    st.error(f"❌ Ocurrió un error al obtener la respuesta: {e}")
-
-# --- Módulo de Evaluación (Temas y Quizz) ---
-st.header("3. Escuela de Aprendizaje: Evaluación")
-if st.session_state.vector_store is None:
-    st.warning("Para iniciar una evaluación, por favor carga y procesa los documentos primero.")
-else:
-    topic_options = list(st.session_state.temas.keys())
-    selected_topic = st.selectbox("Selecciona un tema para evaluar:", options=topic_options)
-
-    if not st.session_state.current_quiz["active"]:
-        if st.button("Iniciar Evaluación"):
-            with st.spinner(f"Generando 4 preguntas sobre '{selected_topic}'..."):
-                st.session_state.current_quiz["active"] = True
-                st.session_state.current_quiz["topic"] = selected_topic
-                questions, correct_answers = generate_questions_and_answers(st.session_state.vector_store, num_questions=4)
-                
-                if questions and correct_answers:
-                    st.session_state.current_quiz["questions"] = questions
-                    st.session_state.current_quiz["correct_answers"] = correct_answers
-                    st.session_state.current_quiz["answers"] = []
-                    st.session_state.current_quiz["scores"] = []
-                    st.session_state.current_quiz["current_q_index"] = 0
-                    st.session_state.current_quiz["final_score"] = 0
-                    st.rerun()
-                else:
-                    st.session_state.current_quiz["active"] = False
-                    st.error("No se pudieron generar las preguntas. Por favor, asegúrate de que los documentos contienen suficiente información.")
-
-    if st.session_state.current_quiz["active"]:
-        quiz_data = st.session_state.current_quiz
-        current_q_index = quiz_data["current_q_index"]
-
-        if current_q_index < len(quiz_data["questions"]):
-            st.subheader(f"Pregunta {current_q_index + 1}/4 sobre el tema: **{quiz_data['topic']}**")
-            st.write(quiz_data["questions"][current_q_index])
-            user_answer = st.text_area("Tu respuesta:")
-            
-            if st.button("Evaluar y Siguiente"):
-                if not user_answer:
-                    st.warning("Por favor, escribe tu respuesta antes de continuar.")
-                else:
-                    score, feedback = grade_answer(get_qa_chain(st.session_state.vector_store), user_answer, quiz_data["questions"][current_q_index], quiz_data["correct_answers"][current_q_index])
-                    quiz_data["answers"].append(user_answer)
-                    quiz_data["scores"].append({"score": score, "feedback": feedback})
-                    quiz_data["current_q_index"] += 1
-                    
-                    st.success(f"Calificación de la pregunta: {score}/5")
-                    st.info(f"Feedback: {feedback}")
-                    st.rerun()
+    # Temas con calificación
+    st.subheader("Temas por Escuela")
+    for tema, data in st.session_state.temas.items():
+        if data["evaluado"]:
+            st.write(f"- {tema}: **{data['puntaje']:.1f}/5**")
         else:
-            final_score = sum(q["score"] for q in quiz_data["scores"])
-            promedio_final = final_score / len(quiz_data["scores"])
-            st.subheader("🎉 ¡Evaluación Finalizada! 🎉")
-            st.metric(label="Nota Final Promedio", value=f"{promedio_final:.1f}/5")
-            
-            if promedio_final >= 3.0:
-                st.success("¡Felicidades! 🎉 Has Aprobado la evaluación.")
-            else:
-                st.error("Lo siento. 😔 No has aprobado la evaluación.")
-                st.warning(f"Ruta de Aprendizaje Personalizada: Te recomendamos repasar el tema '{quiz_data['topic']}' y sus documentos de apoyo para mejorar tus conocimientos.")
-
-            st.session_state.temas[quiz_data["topic"]]["evaluado"] = True
-            st.session_state.temas[quiz_data["topic"]]["puntaje"] = promedio_final
-            
-            st.session_state.users[current_user]["temas_completados"][quiz_data["topic"]] = promedio_final
-            
-            new_badges = check_and_award_badges(current_user, {"topic": quiz_data["topic"], "evaluado": True, "puntaje": promedio_final}, quiz_data["scores"])
-            if new_badges:
-                st.balloons()
-                st.success("¡Has ganado una nueva insignia!")
-                for badge in new_badges:
-                    st.write(f"**🏅 {badge}**")
-
-            st.write("---")
-            st.subheader("Resumen de Preguntas y Calificaciones")
-            for i, q in enumerate(quiz_data["questions"]):
-                st.markdown(f"**Pregunta {i+1}:** {q}")
-                st.markdown(f"**Tu Respuesta:** {quiz_data['answers'][i]}")
-                st.markdown(f"**Calificación:** {quiz_data['scores'][i]['score']}/5 - {quiz_data['scores'][i]['feedback']}")
-                st.write("---")
-            
-            if st.button("Finalizar y Volver al Menú"):
-                st.session_state.current_quiz["active"] = False
-                st.rerun()
-
-# --- Módulo de Ruta de Aprendizaje Personalizada ---
-st.header("4. Ruta de Aprendizaje Personalizada")
-
-if st.session_state.vector_store is None:
-    st.warning("Para ver las rutas de aprendizaje, por favor procesa los documentos primero.")
-else:
-    topic_options_path = ["Selecciona un tema"] + list(st.session_state.temas.keys())
-    selected_path_topic = st.selectbox("Selecciona un tema para ver su ruta de aprendizaje:", options=topic_options_path)
-
-    if selected_path_topic != "Selecciona un tema":
-        st.write("---")
-        st.subheader(f"Ruta de Aprendizaje: {selected_path_topic}")
-        
-        with st.spinner("Generando contenido de la ruta de aprendizaje..."):
-            rag_chain = get_qa_chain(st.session_state.vector_store)
-            content = generate_learning_path_content(rag_chain, selected_path_topic)
-        st.write(content)
-
-# --- Módulo de Simulación de Casos ---
-st.header("5. Simulación de Casos")
-if st.session_state.vector_store is None:
-    st.warning("Para iniciar una simulación, por favor carga y procesa los documentos primero.")
-else:
-    st.markdown(
-    """
-    <div style="background-color:#003366; padding: 20px; border-radius: 10px; color:white;">
-        <p style="text-align:center; font-size:18px;">
-            ¡Bienvenido a la simulación! En este espacio, pondrás a prueba tus habilidades de comunicación y resolución de problemas en escenarios reales de atención al cliente.
-        </p>
-        <p style="text-align:center; font-size:18px;">
-            Tu tarea es describir con detalle, como si estuvieras en una situación real, cómo manejarías la situación. Mentor.IA evaluará tu respuesta no solo por la precisión de la información, sino también por tu **tono**, **empatía** y **profesionalismo**.
-        </p>
-        <p style="text-align:center; font-size:18px;">
-            **¡Estás listo para demostrar tu potencial!**
-        </p>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+            st.write(f"- {tema}: Pendiente")
     
-    scenario = st.text_input("Ingresa el escenario de servicio al cliente:")
-    if scenario:
-        user_response = st.text_area("Describe cómo manejarías este caso:")
-        if st.button("Evaluar mi Simulación"):
-            if not user_response:
-                st.warning("Por favor, escribe tu respuesta antes de evaluar.")
+with tab3:
+    # --- Módulo de Carga de Documentos ---
+    st.header("1. Carga de Documentos")
+    st.write("Sube uno o varios archivos PDF para crear la base de conocimiento.")
+    uploaded_files = st.file_uploader(
+        "Selecciona los archivos PDF", type="pdf", accept_multiple_files=True
+    )
+
+    if uploaded_files:
+        if st.button("Procesar Archivos"):
+            with st.spinner("Procesando documentos..."):
+                try:
+                    get_topics_from_files(uploaded_files)
+                    temp_dir = "temp_pdfs"
+                    if not os.path.exists(temp_dir):
+                        os.makedirs(temp_dir)
+                    
+                    file_paths = []
+                    for uploaded_file in uploaded_files:
+                        file_path = os.path.join(temp_dir, uploaded_file.name)
+                        with open(file_path, "wb") as f:
+                            f.write(uploaded_file.getbuffer())
+                        file_paths.append(file_path)
+                    
+                    docs = []
+                    for path in file_paths:
+                        loader = PyPDFLoader(path)
+                        docs.extend(loader.load())
+                    
+                    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+                    splits = text_splitter.split_documents(docs)
+                    
+                    model_name = "sentence-transformers/all-MiniLM-L6-v2"
+                    embeddings = HuggingFaceEmbeddings(model_name=model_name)
+                    
+                    vector_store = FAISS.from_documents(splits, embeddings)
+                    st.session_state.vector_store = vector_store
+                    st.success("✅ Documentos procesados y base de conocimiento creada. ¡Ahora puedes hacer preguntas!")
+                    
+                except Exception as e:
+                    st.error(f"❌ Ocurrió un error durante el procesamiento: {e}")
+                finally:
+                    if os.path.exists(temp_dir):
+                        for path in os.listdir(temp_dir):
+                            os.remove(os.path.join(temp_dir, path))
+                        os.rmdir(temp_dir)
+
+    # --- Módulo de Preguntas y Respuestas (Chat con Mentor.IA) ---
+    st.header("2. Preguntas y Respuestas")
+    if st.session_state.vector_store is None:
+        st.warning("Por favor, procesa los documentos primero para poder usar Mentor.IA.")
+    else:
+        question = st.text_input("Haz tu pregunta a Mentor.IA:")
+        if question:
+            if st.button("Obtener Respuesta"):
+                with st.spinner("Mentor.IA está generando la respuesta..."):
+                    try:
+                        rag_chain = get_qa_chain(st.session_state.vector_store)
+                        response = rag_chain.invoke(question)
+                        st.write("---")
+                        st.subheader("Respuesta de Mentor.IA:")
+                        st.write(response["result"])
+                    except Exception as e:
+                        st.error(f"❌ Ocurrió un error al obtener la respuesta: {e}")
+
+    # --- Módulo de Evaluación (Temas y Quizz) ---
+    st.header("3. Escuela de Aprendizaje: Evaluación")
+    if st.session_state.vector_store is None:
+        st.warning("Para iniciar una evaluación, por favor carga y procesa los documentos primero.")
+    else:
+        topic_options = list(st.session_state.temas.keys())
+        selected_topic = st.selectbox("Selecciona un tema para evaluar:", options=topic_options)
+
+        if not st.session_state.current_quiz["active"]:
+            if st.button("Iniciar Evaluación"):
+                with st.spinner(f"Generando 4 preguntas sobre '{selected_topic}'..."):
+                    st.session_state.current_quiz["active"] = True
+                    st.session_state.current_quiz["topic"] = selected_topic
+                    questions, correct_answers = generate_questions_and_answers(st.session_state.vector_store, num_questions=4)
+                    
+                    if questions and correct_answers:
+                        st.session_state.current_quiz["questions"] = questions
+                        st.session_state.current_quiz["correct_answers"] = correct_answers
+                        st.session_state.current_quiz["answers"] = []
+                        st.session_state.current_quiz["scores"] = []
+                        st.session_state.current_quiz["current_q_index"] = 0
+                        st.session_state.current_quiz["final_score"] = 0
+                        st.rerun()
+                    else:
+                        st.session_state.current_quiz["active"] = False
+                        st.error("No se pudieron generar las preguntas. Por favor, asegúrate de que los documentos contienen suficiente información.")
+
+        if st.session_state.current_quiz["active"]:
+            quiz_data = st.session_state.current_quiz
+            current_q_index = quiz_data["current_q_index"]
+
+            if current_q_index < len(quiz_data["questions"]):
+                st.subheader(f"Pregunta {current_q_index + 1}/4 sobre el tema: **{quiz_data['topic']}**")
+                st.write(quiz_data["questions"][current_q_index])
+                user_answer = st.text_area("Tu respuesta:")
+                
+                if st.button("Evaluar y Siguiente"):
+                    if not user_answer:
+                        st.warning("Por favor, escribe tu respuesta antes de continuar.")
+                    else:
+                        score, feedback = grade_answer(get_qa_chain(st.session_state.vector_store), user_answer, quiz_data["questions"][current_q_index], quiz_data["correct_answers"][current_q_index])
+                        quiz_data["answers"].append(user_answer)
+                        quiz_data["scores"].append({"score": score, "feedback": feedback})
+                        quiz_data["current_q_index"] += 1
+                        
+                        st.success(f"Calificación de la pregunta: {score}/5")
+                        st.info(f"Feedback: {feedback}")
+                        st.rerun()
             else:
-                with st.spinner("Evaluando tu respuesta..."):
-                    rag_chain = get_qa_chain(st.session_state.vector_store)
-                    evaluation_result = grade_case_simulation(rag_chain, user_response, scenario)
+                final_score = sum(q["score"] for q in quiz_data["scores"])
+                promedio_final = final_score / len(quiz_data["scores"])
+                st.subheader("🎉 ¡Evaluación Finalizada! 🎉")
+                st.metric(label="Nota Final Promedio", value=f"{promedio_final:.1f}/5")
+                
+                if promedio_final >= 3.0:
+                    st.success("¡Felicidades! 🎉 Has Aprobado la evaluación.")
+                else:
+                    st.error("Lo siento. 😔 No has aprobado la evaluación.")
+                    st.warning(f"Ruta de Aprendizaje Personalizada: Te recomendamos repasar el tema '{quiz_data['topic']}' y sus documentos de apoyo para mejorar tus conocimientos.")
+
+                st.session_state.temas[quiz_data["topic"]]["evaluado"] = True
+                st.session_state.temas[quiz_data["topic"]]["puntaje"] = promedio_final
+                
+                st.session_state.users[current_user]["temas_completados"][quiz_data["topic"]] = promedio_final
+                
+                new_badges = check_and_award_badges(current_user, {"topic": quiz_data["topic"], "evaluado": True, "puntaje": promedio_final}, quiz_data["scores"])
+                if new_badges:
+                    st.balloons()
+                    st.success("¡Has ganado una nueva insignia!")
+                    for badge in new_badges:
+                        st.write(f"**🏅 {badge}**")
+
+                st.write("---")
+                st.subheader("Resumen de Preguntas y Calificaciones")
+                for i, q in enumerate(quiz_data["questions"]):
+                    st.markdown(f"**Pregunta {i+1}:** {q}")
+                    st.markdown(f"**Tu Respuesta:** {quiz_data['answers'][i]}")
+                    st.markdown(f"**Calificación:** {quiz_data['scores'][i]['score']}/5 - {quiz_data['scores'][i]['feedback']}")
                     st.write("---")
-                    st.subheader("Resultado de la Simulación")
-                    st.info(evaluation_result)
+                
+                if st.button("Finalizar y Volver al Menú"):
+                    st.session_state.current_quiz["active"] = False
+                    st.rerun()
+
+    # --- Módulo de Ruta de Aprendizaje Personalizada ---
+    st.header("4. Ruta de Aprendizaje Personalizada")
+
+    if st.session_state.vector_store is None:
+        st.warning("Para ver las rutas de aprendizaje, por favor procesa los documentos primero.")
+    else:
+        topic_options_path = ["Selecciona un tema"] + list(st.session_state.temas.keys())
+        selected_path_topic = st.selectbox("Selecciona un tema para ver su ruta de aprendizaje:", options=topic_options_path)
+
+        if selected_path_topic != "Selecciona un tema":
+            st.write("---")
+            st.subheader(f"Ruta de Aprendizaje: {selected_path_topic}")
+            
+            with st.spinner("Generando contenido de la ruta de aprendizaje..."):
+                rag_chain = get_qa_chain(st.session_state.vector_store)
+                content = generate_learning_path_content(rag_chain, selected_path_topic)
+            st.write(content)
+
+    # --- Módulo de Simulación de Casos ---
+    st.header("5. Simulación de Casos")
+    if st.session_state.vector_store is None:
+        st.warning("Para iniciar una simulación, por favor carga y procesa los documentos primero.")
+    else:
+        st.markdown(
+        """
+        <div style="background-color:#003366; padding: 20px; border-radius: 10px; color:white;">
+            <p style="text-align:center; font-size:18px;">
+                ¡Bienvenido a la simulación! En este espacio, pondrás a prueba tus habilidades de comunicación y resolución de problemas en escenarios reales de atención al cliente.
+            </p>
+            <p style="text-align:center; font-size:18px;">
+                Tu tarea es describir con detalle, como si estuvieras en una situación real, cómo manejarías la situación. Mentor.IA evaluará tu respuesta no solo por la precisión de la información, sino también por tu **tono**, **empatía** y **profesionalismo**.
+            </p>
+            <p style="text-align:center; font-size:18px;">
+                **¡Estás listo para demostrar tu potencial!**
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+        
+        scenario = st.text_input("Ingresa el escenario de servicio al cliente:")
+        if scenario:
+            user_response = st.text_area("Describe cómo manejarías este caso:")
+            if st.button("Evaluar mi Simulación"):
+                if not user_response:
+                    st.warning("Por favor, escribe tu respuesta antes de evaluar.")
+                else:
+                    with st.spinner("Evaluando tu respuesta..."):
+                        rag_chain = get_qa_chain(st.session_state.vector_store)
+                        evaluation_result = grade_case_simulation(rag_chain, user_response, scenario)
+                        st.write("---")
+                        st.subheader("Resultado de la Simulación")
+                        st.info(evaluation_result)
