@@ -10,3 +10,4 @@ langchain-google-genai
 pandas
 Pillow
 huggingface-hub
+unstructured
