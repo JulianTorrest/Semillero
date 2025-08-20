@@ -20,8 +20,8 @@ def get_qa_chain(vector_store, model_name="gemini-2.0-flash"):
         retriever=vector_store.as_retriever()
     )
     return rag_chain
-    
-def generate_questions_and_answers(vector_store, num_questions=10):
+
+def generate_questions_and_answers(vector_store, num_questions=4):
     """
     Genera preguntas y respuestas únicas y las almacena.
     Selecciona fragmentos de texto aleatorios para garantizar la unicidad.
@@ -260,10 +260,10 @@ else:
 
     if not st.session_state.current_quiz["active"]:
         if st.button("Iniciar Evaluación"):
-            with st.spinner(f"Generando 10 preguntas sobre '{selected_topic}'..."):
+            with st.spinner(f"Generando 4 preguntas sobre '{selected_topic}'..."):
                 st.session_state.current_quiz["active"] = True
                 st.session_state.current_quiz["topic"] = selected_topic
-                questions, correct_answers = generate_questions_and_answers(st.session_state.vector_store, num_questions=10)
+                questions, correct_answers = generate_questions_and_answers(st.session_state.vector_store, num_questions=4)
                 
                 if questions and correct_answers:
                     st.session_state.current_quiz["questions"] = questions
@@ -283,7 +283,7 @@ else:
         current_q_index = quiz_data["current_q_index"]
 
         if current_q_index < len(quiz_data["questions"]):
-            st.subheader(f"Pregunta {current_q_index + 1}/10 sobre el tema: **{quiz_data['topic']}**")
+            st.subheader(f"Pregunta {current_q_index + 1}/4 sobre el tema: **{quiz_data['topic']}**")
             st.write(quiz_data["questions"][current_q_index])
             user_answer = st.text_area("Tu respuesta:")
             
