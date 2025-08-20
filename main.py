@@ -15,6 +15,38 @@ from PIL import Image
 from unstructured.partition.auto import partition
 from unstructured.staging.base import elements_to_json
 
+st.markdown("""
+<style>
+    /* Estilos generales */
+    .stApp {
+        background-color: #f0f2f6; /* Color de fondo del body */
+        color: #333;
+    }
+
+    /* Estilos de los contenedores y tarjetas */
+    .stContainer, .st-expander {
+        border-radius: 10px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+
+    /* Estilos de los títulos */
+    h1, h2, h3, h4, h5, h6 {
+        color: #003366; /* Color de títulos de Finanzauto */
+    }
+
+    /* Estilos de los botones */
+    .st-emotion-cache-1c7v0z {
+        background-color: #003366; /* Color principal de Finanzauto */
+        color: white;
+        border-radius: 5px;
+    }
+
+    /* Otros estilos... */
+</style>
+""", unsafe_allow_html=True)
+
 # --- Funciones Auxiliares ---
 def get_qa_chain(vector_store, model_name="gemini-2.0-flash"):
     """Crea y retorna la cadena RAG para preguntas y respuestas."""
