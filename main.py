@@ -235,47 +235,58 @@ def get_topics_from_files(uploaded_files):
 
 # --- Barra Lateral (Menú y Perfil de Usuario) ---
 with st.sidebar:
-    st.header("👤 Perfil de Usuario")
-    st.write("---")
-    current_user = "Julian Yamid Torres Torres"
-    st.write(f"**Nombre:** {current_user}")
-    st.subheader("Mis Insignias")
-    if st.session_state.users[current_user]["badges"]:
-        for badge in st.session_state.users[current_user]["badges"]:
-            st.write(f"🏅 {badge}")
-    else:
-        st.write("Aún no tienes insignias. ¡Completa temas para ganar la primera!")
+    st.header("Menú Principal")
     st.write("---")
 
-    st.header("📚 Escuela: Cartera")
-    st.write("---")
-    
-    st.subheader("Reporte de Avance")
-    temas_evaluados = [t for t in st.session_state.temas.values() if t["evaluado"]]
-    total_temas = len(st.session_state.temas)
-    
-    if temas_evaluados:
-        promedio_finalizados = sum(t["puntaje"] for t in temas_evaluados) / len(temas_evaluados)
-    else:
-        promedio_finalizados = 0
-    st.metric(label="Calificación Promedio", value=f"{promedio_finalizados:.1f}/5")
+    # Módulo 1: Perfil de Usuario
+    with st.expander("👤 **Perfil de Usuario**", expanded=True):
+        current_user = "Julian Yamid Torres Torres"
+        st.write(f"**Nombre:** {current_user}")
+        st.subheader("Mis Insignias")
+        if st.session_state.users[current_user]["badges"]:
+            for badge in st.session_state.users[current_user]["badges"]:
+                st.write(f"🏅 {badge}")
+        else:
+            st.write("Aún no tienes insignias. ¡Completa temas para ganar la primera!")
+        st.write("---")
 
-    temas_finalizados = len(temas_evaluados)
-    porcentaje_finalizado = (temas_finalizados / total_temas) * 100 if total_temas > 0 else 0
-    st.metric(label="Temas Finalizados", value=f"{temas_finalizados}/{total_temas}")
-    st.progress(porcentaje_finalizado / 100, text=f"{porcentaje_finalizado:.0f}% completado")
+    # Módulo 2: Evaluación (Simplemente un título en el menú para guiar al usuario)
+    with st.expander("📚 **Evaluación**", expanded=False):
+        st.write("Ve al área de 'Escuela de Aprendizaje: Evaluación' para iniciar.")
+        st.write("---")
 
-    st.write("---")
-    st.subheader("Temas Asignados")
-    for tema, data in st.session_state.temas.items():
-        if not data["evaluado"]:
-            st.write(f"- {tema}")
-    
-    st.subheader("Temas Finalizados")
-    for tema, data in st.session_state.temas.items():
-        if data["evaluado"]:
-            st.write(f"- {tema}: **{data['puntaje']}/5**")
-    st.write("---")
+    # Módulo 3: Escuelas
+    with st.expander("🎓 **Escuelas**", expanded=True):
+        st.subheader("Escuela: Cartera")
+        st.write("---")
+        
+        # Reporte de Avance
+        temas_evaluados = [t for t in st.session_state.temas.values() if t["evaluado"]]
+        total_temas = len(st.session_state.temas)
+        
+        if temas_evaluados:
+            promedio_finalizados = sum(t["puntaje"] for t in temas_evaluados) / len(temas_evaluados)
+        else:
+            promedio_finalizados = 0
+        st.metric(label="Calificación Promedio", value=f"{promedio_finalizados:.1f}/5")
+
+        temas_finalizados = len(temas_evaluados)
+        porcentaje_finalizado = (temas_finalizados / total_temas) * 100 if total_temas > 0 else 0
+        st.metric(label="Temas Finalizados", value=f"{temas_finalizados}/{total_temas}")
+        st.progress(porcentaje_finalizado / 100, text=f"{porcentaje_finalizado:.0f}% completado")
+        
+        st.write("---")
+
+        # Temas con calificación
+        st.subheader("Temas por Escuela")
+        for tema, data in st.session_state.temas.items():
+            if data["evaluado"]:
+                st.write(f"- {tema}: **{data['puntaje']:.1f}/5**")
+            else:
+                st.write(f"- {tema}: Pendiente")
+        
+        st.write("---")
+
     st.header("🏆 Tabla de Liderazgo")
     leaderboard_data = []
     for user, data in st.session_state.users.items():
