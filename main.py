@@ -227,11 +227,14 @@ def load_users():
     
     # Sincronizar temas completados con la nueva estructura
     for user, data in st.session_state.users.items():
-        for escuela, temas in data["temas_completados"].items():
-            for tema, puntaje in temas.items():
-                if escuela in st.session_state.escuelas and tema in st.session_state.escuelas[escuela]:
-                    st.session_state.escuelas[escuela][tema]["evaluado"] = True
-                    st.session_state.escuelas[escuela][tema]["puntaje"] = puntaje
+        # Verificamos si 'temas_completados' es un diccionario antes de iterar
+        if isinstance(data.get("temas_completados"), dict):
+            for escuela, temas in data["temas_completados"].items():
+                if isinstance(temas, dict):
+                    for tema, puntaje in temas.items():
+                        if escuela in st.session_state.escuelas and tema in st.session_state.escuelas[escuela]:
+                            st.session_state.escuelas[escuela][tema]["evaluado"] = True
+                            st.session_state.escuelas[escuela][tema]["puntaje"] = puntaje
 
 # --- Configuración y Título ---
 st.set_page_config(page_title="Mentor.IA - Finanzauto", layout="wide")
