@@ -1,6 +1,5 @@
 import streamlit as st
 import os
-import io
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.embeddings import HuggingFaceEmbeddings
@@ -10,7 +9,6 @@ from langchain.chains import RetrievalQA
 import google.generativeai as genai
 import random
 import pandas as pd
-from pydub import AudioSegment
 from PIL import Image
 
 # --- Funciones Auxiliares ---
@@ -427,10 +425,10 @@ with tab2:
 with tab3:
     # --- Contenido de la pestaña de Evaluación ---
     st.header("1. Carga de Documentos")
-    st.write("Sube uno o varios archivos PDF o de audio (MP3) para crear la base de conocimiento.")
+    st.write("Sube uno o varios archivos PDF para crear la base de conocimiento.")
     
     uploaded_files = st.file_uploader(
-        "Selecciona los archivos", type=["pdf", "mp3"], accept_multiple_files=True
+        "Selecciona los archivos", type=["pdf"], accept_multiple_files=True
     )
 
     if uploaded_files:
@@ -451,20 +449,6 @@ with tab3:
                             for doc in docs:
                                 all_text += doc.page_content
                             os.remove(file_path)
-                        elif uploaded_file.type == "audio/mpeg":
-                            # Procesar MP3
-                            st.info(f"Procesando archivo de audio: {uploaded_file.name}")
-                            audio_bytes = uploaded_file.read()
-                            audio = AudioSegment.from_file(io.BytesIO(audio_bytes), format="mp3")
-
-                            llm_audio = ChatGoogleGenerativeAI(model="gemini-2.0-flash", google_api_key=st.secrets["GOOGLE_API_KEY"])
-                            prompt_audio = f"""
-                            Transcribe el siguiente audio.
-                            """
-                            # No hay una forma directa de pasar el audio a la LLM con Langchain, esto es una simulación
-                            # En una implementación real se usaría una API de transcripción
-                            transcription = "Esta es una transcripción simulada de un archivo de audio para el ejemplo de integración multimedia."
-                            all_text += transcription
 
                     text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
                     splits = text_splitter.split_text(all_text)
@@ -479,8 +463,8 @@ with tab3:
                 except Exception as e:
                     st.error(f"❌ Ocurrió un error durante el procesamiento: {e}")
                 finally:
-                    if os.path.exists("temp_audio.mp3"):
-                        os.remove("temp_audio.mp3")
+                    # Se eliminan los archivos temporales después del procesamiento
+                    pass
 
     st.header("2. Preguntas y Respuestas")
     if st.session_state.vector_store is None:
