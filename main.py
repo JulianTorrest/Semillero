@@ -268,7 +268,7 @@ def get_topics_from_files(uploaded_files, school_name="Escuela DataPro"):
 
 
 # --- Contenido Principal con Pestañas ---
-tab1, tab2, tab3 = st.tabs(["👤 Perfil", "🎓 Escuelas", "📚 Evaluación"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["👤 Perfil", "🎓 Escuelas", "📚 Evaluación", "👨‍💼 Gestionar Usuario", "🛠️ Modificar Escuela"])
 
 with tab1:
     # --- Perfil de Usuario ---
@@ -547,3 +547,93 @@ with tab3:
                         st.write("---")
                         st.subheader("Resultado de la Simulación")
                         st.info(evaluation_result)
+
+with tab4:
+    st.header("👨‍💼 Gestionar Usuario")
+    st.write("Completa el siguiente formulario para agregar un nuevo usuario.")
+    
+    with st.form("add_user_form"):
+        st.subheader("Datos del Nuevo Usuario")
+        nombre_usuario = st.text_input("Nombre Completo:")
+        cedula_usuario = st.text_input("Cédula:")
+        correo_usuario = st.text_input("Correo:")
+        empresa_usuario = st.text_input("Empresa:")
+        area_usuario = st.text_input("Área:")
+        direccion_usuario = st.text_input("Dirección:")
+        rol_usuario = st.text_input("Rol:")
+        
+        submitted = st.form_submit_button("Agregar Usuario")
+        
+        if submitted:
+            if nombre_usuario and cedula_usuario and correo_usuario:
+                new_user_data = {
+                    "empresa": empresa_usuario,
+                    "cedula": cedula_usuario,
+                    "nombre": nombre_usuario,
+                    "correo": correo_usuario,
+                    "direccion": direccion_usuario,
+                    "area": area_usuario,
+                    "rol": rol_usuario,
+                    "temas_completados": {},
+                    "badges": []
+                }
+                
+                # Usar el nombre como clave del diccionario de usuarios
+                st.session_state.users[nombre_usuario] = new_user_data
+                st.success(f"✅ Usuario '{nombre_usuario}' agregado exitosamente.")
+                st.balloons()
+            else:
+                st.error("Por favor, completa los campos obligatorios: Nombre, Cédula y Correo.")
+
+with tab5:
+    st.header("🛠️ Modificar Escuela")
+    st.write("Selecciona una escuela para gestionar sus módulos.")
+
+    school_to_modify = st.selectbox("Seleccionar Escuela:", list(st.session_state.escuelas.keys()))
+
+    if school_to_modify:
+        st.subheader(f"Módulos de la Escuela: {school_to_modify}")
+
+        # Formulario para agregar un nuevo módulo
+        with st.form("add_module_form", clear_on_submit=True):
+            st.markdown("#### **Agregar Nuevo Módulo**")
+            new_module_name = st.text_input("Nombre del Módulo:")
+            new_module_duration = st.text_input("Duración (ej. 2 horas):")
+            
+            if st.form_submit_button("➕ Agregar Módulo"):
+                if new_module_name:
+                    if new_module_name not in st.session_state.escuelas[school_to_modify]:
+                        st.session_state.escuelas[school_to_modify][new_module_name] = {
+                            "evaluado": False, 
+                            "puntaje": 0, 
+                            "duracion": new_module_duration
+                        }
+                        st.success(f"Módulo '{new_module_name}' agregado a la escuela '{school_to_modify}'.")
+                    else:
+                        st.warning(f"El módulo '{new_module_name}' ya existe en esta escuela.")
+                    st.rerun()
+                else:
+                    st.error("Por favor, ingresa el nombre del módulo.")
+
+        st.markdown("---")
+        st.markdown("#### **Lista de Módulos**")
+        
+        modules_data = []
+        for modulo, info in st.session_state.escuelas[school_to_modify].items():
+            modules_data.append({
+                "Módulo": modulo,
+                "Duración": info.get("duracion", "N/A"),
+                "Estado": "Completado" if info.get("evaluado") else "Pendiente",
+            })
+        
+        # Mostrar la tabla con los módulos
+        st.dataframe(modules_data, use_container_width=True)
+        
+        # Eliminar módulos (usando botones en columnas)
+        st.markdown("#### **Eliminar Módulo**")
+        modulo_a_eliminar = st.selectbox("Selecciona un módulo para eliminar:", options=list(st.session_state.escuelas[school_to_modify].keys()))
+        if st.button("🗑️ Eliminar Módulo"):
+            if modulo_a_eliminar:
+                del st.session_state.escuelas[school_to_modify][modulo_a_eliminar]
+                st.success(f"Módulo '{modulo_a_eliminar}' eliminado de la escuela '{school_to_modify}'.")
+                st.rerun()
