@@ -65,8 +65,6 @@ if uploaded_files:
                         os.remove(os.path.join(temp_dir, path))
                     os.rmdir(temp_dir)
 
----
-
 ### Módulo de Preguntas y Respuestas
 
 st.header("2. Preguntas y Respuestas")
