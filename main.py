@@ -205,6 +205,13 @@ def load_users():
     if "users" not in st.session_state:
         st.session_state.users = {
             "Julian Yamid Torres Torres": {
+                "empresa": "Finanzauto",
+                "cedula": "123456789",
+                "nombre": "Julian Yamid Torres Torres",
+                "correo": "julian.torres@finanzauto.com",
+                "cargo": "Analista",
+                "direccion": "Calle 123",
+                "area": "Cartera",
                 "puntos": 150,
                 "nivel": 2,
                 "temas_completados": {
@@ -216,6 +223,13 @@ def load_users():
                 "badges": ["Master en Tipos de clientes y manejo", "Primer Paso 👣"]
             },
             "Sofia Gomez": {
+                "empresa": "Finanzauto",
+                "cedula": "987654321",
+                "nombre": "Sofia Gomez",
+                "correo": "sofia.gomez@finanzauto.com",
+                "cargo": "Gerente",
+                "direccion": "Carrera 456",
+                "area": "Comercial",
                 "puntos": 80,
                 "nivel": 1,
                 "temas_completados": {
@@ -226,6 +240,13 @@ def load_users():
                 "badges": ["Master en Manejo de PQRs"]
             },
             "Carlos Ramirez": {
+                "empresa": "Finanzauto",
+                "cedula": "555555555",
+                "nombre": "Carlos Ramirez",
+                "correo": "carlos.ramirez@finanzauto.com",
+                "cargo": "Asesor",
+                "direccion": "Avenida 789",
+                "area": "Servicio al Cliente",
                 "puntos": 25,
                 "nivel": 1,
                 "temas_completados": {
@@ -327,6 +348,30 @@ def load_and_process_students(file):
     except Exception as e:
         st.error(f"Error al procesar el archivo: {e}")
         return None
+
+def add_users_from_dataframe(df_users):
+    """Agrega usuarios desde un DataFrame a la base de datos de la sesión."""
+    users_added = 0
+    for index, row in df_users.iterrows():
+        nombre = row["Nombre"]
+        if nombre not in st.session_state.users:
+            new_user_data = {
+                "empresa": row["Empresa"],
+                "cedula": row["Cedula"],
+                "nombre": nombre,
+                "correo": row["Correo"],
+                "cargo": row["Cargo"],
+                "direccion": row["Direccion"],
+                "area": row["Area"],
+                "puntos": 0,
+                "nivel": 0,
+                "temas_completados": {},
+                "badges": []
+            }
+            st.session_state.users[nombre] = new_user_data
+            users_added += 1
+    return users_added
+
 
 # --- Configuración y Título ---
 st.set_page_config(page_title="Mentor.IA - Finanzauto", layout="wide")
@@ -705,41 +750,65 @@ with tab3:
 
 with tab4:
     st.header("👨‍💼 Gestionar Usuario")
-    st.write("Completa el siguiente formulario para agregar un nuevo usuario.")
+    st.markdown("#### **Bienvenido a esta sección: administra la información de los usuarios.**")
     
-    with st.form("add_user_form"):
-        st.subheader("Datos del Nuevo Usuario")
-        nombre_usuario = st.text_input("Nombre Completo:")
-        cedula_usuario = st.text_input("Cédula:")
-        correo_usuario = st.text_input("Correo:")
-        empresa_usuario = st.text_input("Empresa:")
-        area_usuario = st.text_input("Área:")
-        direccion_usuario = st.text_input("Dirección:")
-        rol_usuario = st.text_input("Rol:")
+    user_creation_type = st.radio("Elige el tipo de creación de usuario:", ("Creación Única", "Creación Masiva"))
+
+    if user_creation_type == "Creación Única":
+        with st.form("add_user_form"):
+            st.subheader("Datos del Nuevo Usuario")
+            nombre_usuario = st.text_input("Nombre Completo:")
+            cedula_usuario = st.text_input("Cédula:")
+            correo_usuario = st.text_input("Correo:")
+            empresa_usuario = st.text_input("Empresa:")
+            area_usuario = st.text_input("Área:")
+            direccion_usuario = st.text_input("Dirección:")
+            rol_usuario = st.text_input("Cargo:")
+            
+            submitted = st.form_submit_button("Agregar Usuario")
+            
+            if submitted:
+                if nombre_usuario and cedula_usuario and correo_usuario:
+                    if nombre_usuario not in st.session_state.users:
+                        new_user_data = {
+                            "empresa": empresa_usuario,
+                            "cedula": cedula_usuario,
+                            "nombre": nombre_usuario,
+                            "correo": correo_usuario,
+                            "direccion": direccion_usuario,
+                            "area": area_usuario,
+                            "cargo": rol_usuario,
+                            "puntos": 0,
+                            "nivel": 0,
+                            "temas_completados": {},
+                            "badges": []
+                        }
+                        st.session_state.users[nombre_usuario] = new_user_data
+                        st.success(f"✅ Usuario '{nombre_usuario}' agregado exitosamente.")
+                        st.balloons()
+                    else:
+                        st.error(f"El usuario '{nombre_usuario}' ya existe. No se puede crear de nuevo.")
+                else:
+                    st.error("Por favor, completa los campos obligatorios: Nombre, Cédula y Correo.")
+
+    elif user_creation_type == "Creación Masiva":
+        st.subheader("Carga Masiva de Usuarios")
+        st.write("Carga un archivo PDF o Excel que contenga los campos requeridos para los usuarios.")
         
-        submitted = st.form_submit_button("Agregar Usuario")
+        uploaded_file_mass_user = st.file_uploader("Selecciona el archivo para la creación masiva", type=["pdf", "xlsx"])
         
-        if submitted:
-            if nombre_usuario and cedula_usuario and correo_usuario:
-                new_user_data = {
-                    "empresa": empresa_usuario,
-                    "cedula": cedula_usuario,
-                    "nombre": nombre_usuario,
-                    "correo": correo_usuario,
-                    "direccion": direccion_usuario,
-                    "area": area_usuario,
-                    "rol": rol_usuario,
-                    "puntos": 0,
-                    "nivel": 0,
-                    "temas_completados": {},
-                    "badges": []
-                }
+        if uploaded_file_mass_user:
+            st.write("---")
+            st.subheader("Vista Previa de la Carga")
+            df_preview_user = load_and_process_students(uploaded_file_mass_user)
+            
+            if df_preview_user is not None:
+                st.dataframe(df_preview_user, use_container_width=True)
                 
-                st.session_state.users[nombre_usuario] = new_user_data
-                st.success(f"✅ Usuario '{nombre_usuario}' agregado exitosamente.")
-                st.balloons()
-            else:
-                st.error("Por favor, completa los campos obligatorios: Nombre, Cédula y Correo.")
+                if st.button("Aceptar cambios y crear usuarios"):
+                    users_added_count = add_users_from_dataframe(df_preview_user)
+                    st.success(f"✅ Se han creado {users_added_count} usuarios exitosamente.")
+                    st.rerun()
 
 with tab5:
     st.header("🛠️ Modificar Escuela")
@@ -997,44 +1066,45 @@ with tab8:
     
     if selection_mode == "Selección Individual":
         alumnos_list = list(st.session_state.users.keys())
-        selected_alumnos_unique = st.multiselect("Selecciona los alumnos de la lista:", alumnos_list)
-        selected_alumnos = selected_alumnos_unique
+        selected_alumnos = st.multiselect("Selecciona los alumnos de la lista:", alumnos_list)
         
     elif selection_mode == "Selección Masiva":
-        st.warning("Para seleccionar alumnos de forma masiva, debes usar la pestaña 'Asignar Alumnos' para cargarlos previamente.")
+        uploaded_file_agendamiento = st.file_uploader("Carga un archivo PDF o Excel para la selección masiva de alumnos", type=["pdf", "xlsx"])
         
-        alumnos_options = ["Todos los alumnos"] + list(st.session_state.users.keys())
-        select_mass_option = st.selectbox("Elige un grupo de alumnos:", alumnos_options)
-
-        if select_mass_option == "Todos los alumnos":
-            selected_alumnos = list(st.session_state.users.keys())
-            st.info(f"Se ha seleccionado a **todos** los alumnos ({len(selected_alumnos)}).")
-        else:
-            selected_alumnos = [select_mass_option]
-            st.info(f"Se ha seleccionado al alumno **{select_mass_option}**.")
+        if uploaded_file_agendamiento:
+            st.info("Vista previa de los alumnos a seleccionar:")
+            df_alumnos_preview = load_and_process_students(uploaded_file_agendamiento)
+            if df_alumnos_preview is not None:
+                st.dataframe(df_alumnos_preview, use_container_width=True)
+                
+                if st.button("Aceptar y seleccionar alumnos"):
+                    selected_alumnos = df_alumnos_preview["Nombre"].tolist()
+                    st.session_state["selected_alumnos_agendamiento"] = selected_alumnos
+                    st.success(f"✅ Se han seleccionado {len(selected_alumnos)} alumnos del archivo.")
+                    st.rerun()
+        
+        if "selected_alumnos_agendamiento" in st.session_state:
+            selected_alumnos = st.session_state["selected_alumnos_agendamiento"]
+            st.write(f"**Alumnos seleccionados:** {', '.join(selected_alumnos)}")
 
     st.markdown("---")
     
-    col_buttons1, col_buttons2 = st.columns([1, 4])
-    
-    with col_buttons1:
-        if st.button("Enviar Citación"):
-            if not clase_asunto or not clase_cuerpo:
-                st.error("Por favor, completa el Asunto y el Cuerpo del mensaje.")
-            elif not selected_alumnos:
-                st.error("Por favor, selecciona al menos un alumno.")
-            else:
-                with st.spinner("Enviando citaciones..."):
-                    # Simulación de envío
-                    st.session_state["citacion_enviada"] = True
-                    st.success("✅ **¡Citación Enviada!**")
-                    st.info(f"Citación enviada a {len(selected_alumnos)} alumno(s).")
-                    
-                    st.write("---")
-                    st.subheader("Resumen de la Citación")
-                    st.write(f"**Fecha:** {clase_date.strftime('%d/%m/%Y')}")
-                    st.write(f"**Hora:** {clase_time.strftime('%H:%M')}")
-                    st.write(f"**Asunto:** {clase_asunto}")
-                    st.write(f"**Cuerpo del mensaje:**")
-                    st.write(clase_cuerpo)
-                    st.write(f"**Alumnos Citados:** {', '.join(selected_alumnos)}")
+    if st.button("Enviar Citación"):
+        final_selected_alumnos = selected_alumnos
+        if not final_selected_alumnos:
+            st.error("Por favor, selecciona al menos un alumno para enviar la citación.")
+        elif not clase_asunto or not clase_cuerpo:
+            st.error("Por favor, completa el Asunto y el Cuerpo del mensaje.")
+        else:
+            with st.spinner("Enviando citaciones..."):
+                st.success("✅ **¡Citación Enviada!**")
+                st.info(f"Citación enviada a {len(final_selected_alumnos)} alumno(s).")
+                
+                st.write("---")
+                st.subheader("Resumen de la Citación")
+                st.write(f"**Fecha:** {clase_date.strftime('%d/%m/%Y')}")
+                st.write(f"**Hora:** {clase_time.strftime('%H:%M')}")
+                st.write(f"**Asunto:** {clase_asunto}")
+                st.write(f"**Cuerpo del mensaje:**")
+                st.write(clase_cuerpo)
+                st.write(f"**Alumnos Citados:** {', '.join(final_selected_alumnos)}")
