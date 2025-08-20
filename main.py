@@ -16,7 +16,6 @@ from unstructured.partition.auto import partition
 from unstructured.staging.base import elements_to_json
 
 # --- Funciones Auxiliares ---
-
 def get_qa_chain(vector_store, model_name="gemini-2.0-flash"):
     """Crea y retorna la cadena RAG para preguntas y respuestas."""
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
@@ -429,33 +428,38 @@ with tab1:
     st.header("👤 Perfil de Usuario")
     st.write("---")
     current_user = st.session_state.current_user
-    st.write(f"**Nombre:** {current_user}")
+    st.info(f"¡Bienvenido, **{current_user}**! Aquí puedes ver tu progreso y logros.")
 
     st.subheader("Estado de Nivel")
-    total_temas_completados = sum(len(temas) for temas in st.session_state.users[current_user]["temas_completados"].values())
-    st.metric(label="Módulos Completados", value=f"{total_temas_completados}")
-
-    total_puntaje = 0
-    total_temas = 0
-    for escuela, temas in st.session_state.users[current_user]["temas_completados"].items():
-        total_puntaje += sum(temas.values())
-        total_temas += len(temas)
+    col1_p, col2_p, col3_p = st.columns(3)
     
-    promedio_general = total_puntaje / total_temas if total_temas > 0 else 0
-    st.metric(label="Puntaje Promedio General", value=f"{promedio_general:.1f}/5")
+    with col1_p:
+        total_temas_completados = sum(len(temas) for temas in st.session_state.users[current_user]["temas_completados"].values())
+        st.metric(label="Módulos Completados", value=f"{total_temas_completados}")
+
+    with col2_p:
+        total_puntaje = 0
+        total_temas = 0
+        for escuela, temas in st.session_state.users[current_user]["temas_completados"].items():
+            total_puntaje += sum(temas.values())
+            total_temas += len(temas)
+        promedio_general = total_puntaje / total_temas if total_temas > 0 else 0
+        st.metric(label="Puntaje Promedio General", value=f"{promedio_general:.1f}/5")
+
+    with col3_p:
+        st.metric(label="Nivel Actual", value=st.session_state.users[current_user]["nivel"])
 
     st.write("---")
-    st.subheader("Gamificación")
+    st.subheader("Gamificación y Logros")
     st.metric(label="Puntos Totales", value=st.session_state.users[current_user]["puntos"])
-    st.metric(label="Nivel Actual", value=st.session_state.users[current_user]["nivel"])
-
-    st.write("---")
+    
     st.subheader("Mis Insignias")
     if st.session_state.users[current_user]["badges"]:
+        st.success("¡Has ganado estas insignias!")
         for badge in st.session_state.users[current_user]["badges"]:
-            st.write(f"🏅 {badge}")
+            st.write(f"🏅 **{badge}**")
     else:
-        st.write("Aún no tienes insignias. ¡Completa módulos para ganar la primera!")
+        st.info("Aún no tienes insignias. ¡Completa módulos para ganar la primera!")
     
     st.write("---")
     st.header("🏆 Tabla de Liderazgo")
@@ -478,27 +482,28 @@ with tab1:
 with tab2:
     # --- Módulo de Escuelas ---
     st.header("🎓 Escuelas de Aprendizaje")
+    st.markdown("Explora las diferentes escuelas y sus módulos de capacitación.")
     st.write("---")
 
     for escuela_nombre, temas in st.session_state.escuelas.items():
-        st.subheader(f"✅ {escuela_nombre}")
-        total_temas_escuela = len(temas)
-        temas_completados_escuela = [t for t in temas.values() if t["evaluado"]]
-        num_temas_completados = len(temas_completados_escuela)
-        
-        st.progress(num_temas_completados / total_temas_escuela, text=f"{num_temas_completados}/{total_temas_escuela} Módulos completados")
-        
-        for tema, data in temas.items():
-            if data["evaluado"]:
-                st.write(f"- **{tema}**: **{data['puntaje']:.1f}/5**")
-            else:
-                st.write(f"- **{tema}**: Pendiente")
-        st.write("---")
+        with st.expander(f"**{escuela_nombre}**"):
+            total_temas_escuela = len(temas)
+            temas_completados_escuela = [t for t in temas.values() if t["evaluado"]]
+            num_temas_completados = len(temas_completados_escuela)
+            
+            st.progress(num_temas_completados / total_temas_escuela, text=f"{num_temas_completados}/{total_temas_escuela} Módulos completados")
+            
+            for tema, data in temas.items():
+                if data["evaluado"]:
+                    st.success(f"- **{tema}**: **{data['puntaje']:.1f}/5**")
+                else:
+                    st.warning(f"- **{tema}**: Pendiente")
+            st.write("---")
 
 with tab3:
     # --- Contenido de la pestaña de Evaluación ---
     st.header("1. Carga de Documentos")
-    st.write("Sube archivos en formato **PDF, DOCX, XLSX, PPTX o imágenes (.png, .jpg)** para crear la base de conocimiento.")
+    st.markdown("Sube archivos en formato **PDF, DOCX, XLSX, PPTX o imágenes (.png, .jpg)** para crear la base de conocimiento.")
     
     uploaded_files = st.file_uploader(
         "Selecciona los archivos", 
@@ -507,7 +512,7 @@ with tab3:
     )
 
     if uploaded_files:
-        if st.button("Procesar Archivos"):
+        if st.button("Procesar Archivos", use_container_width=True):
             with st.spinner("Procesando documentos..."):
                 try:
                     all_text = ""
@@ -515,7 +520,6 @@ with tab3:
                         file_type = uploaded_file.type
                         
                         if file_type == "application/pdf":
-                            # Procesar PDF
                             temp_dir = "temp_files"
                             if not os.path.exists(temp_dir): os.makedirs(temp_dir)
                             file_path = os.path.join(temp_dir, uploaded_file.name)
@@ -529,14 +533,12 @@ with tab3:
                             st.success(f"✅ Documento PDF '{uploaded_file.name}' procesado.")
 
                         elif file_type in ["application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/vnd.openxmlformats-officedocument.presentationml.presentation"]:
-                            # Procesar DOCX y PPTX
                             elements = partition(file=uploaded_file)
                             text_content = "\n\n".join([str(e) for e in elements])
                             all_text += text_content
                             st.success(f"✅ Documento de texto '{uploaded_file.name}' procesado.")
 
                         elif file_type == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
-                            # Procesar XLSX
                             df = pd.read_excel(uploaded_file, sheet_name=None)
                             excel_text = ""
                             for sheet_name, sheet_df in df.items():
@@ -547,14 +549,10 @@ with tab3:
                             st.success(f"✅ Documento de Excel '{uploaded_file.name}' procesado.")
                         
                         elif file_type in ["image/png", "image/jpeg"]:
-                            # Procesar Imágenes (usando la capacidad de visión de Gemini)
                             st.info(f"Procesando imagen: {uploaded_file.name}")
                             img_bytes = uploaded_file.read()
                             img_model = genai.GenerativeModel('gemini-1.5-pro-latest')
-                            
-                            # Cargar imagen y convertirla a formato compatible
                             img = Image.open(io.BytesIO(img_bytes))
-                            
                             prompt_img = """
                             Describe en detalle el contenido de esta imagen para que pueda ser utilizado como texto en una base de conocimiento. Incluye todo el texto visible, tablas, gráficos y cualquier otra información relevante.
                             """
@@ -575,7 +573,6 @@ with tab3:
                 except Exception as e:
                     st.error(f"❌ Ocurrió un error durante el procesamiento: {e}")
                 finally:
-                    # Limpiar el directorio temporal
                     pass
 
     st.header("2. Preguntas y Respuestas")
@@ -584,7 +581,7 @@ with tab3:
     else:
         question = st.text_input("Haz tu pregunta a Mentor.IA:")
         if question:
-            if st.button("Obtener Respuesta"):
+            if st.button("Obtener Respuesta", use_container_width=True):
                 with st.spinner("Mentor.IA está generando la respuesta..."):
                     try:
                         rag_chain = get_qa_chain(st.session_state.vector_store)
@@ -601,12 +598,11 @@ with tab3:
     else:
         school_options = list(st.session_state.escuelas.keys())
         selected_school = st.selectbox("Selecciona una escuela para evaluar:", options=school_options)
-
         topic_options = list(st.session_state.escuelas[selected_school].keys())
         selected_topic = st.selectbox("Selecciona un tema para evaluar:", options=topic_options)
 
         if not st.session_state.current_quiz["active"]:
-            if st.button("Iniciar Evaluación"):
+            if st.button("Iniciar Evaluación", use_container_width=True):
                 with st.spinner(f"Generando 4 preguntas sobre '{selected_topic}'..."):
                     st.session_state.current_quiz["active"] = True
                     st.session_state.current_quiz["school"] = selected_school
@@ -631,10 +627,10 @@ with tab3:
 
             if current_q_index < len(quiz_data["questions"]):
                 st.subheader(f"Pregunta {current_q_index + 1}/4 sobre el tema: **{quiz_data['topic']}**")
-                st.write(quiz_data["questions"][current_q_index])
+                st.info(quiz_data["questions"][current_q_index])
                 user_answer = st.text_area("Tu respuesta:")
                 
-                if st.button("Evaluar y Siguiente"):
+                if st.button("Evaluar y Siguiente", use_container_width=True):
                     if not user_answer:
                         st.warning("Por favor, escribe tu respuesta antes de continuar.")
                     else:
@@ -654,12 +650,12 @@ with tab3:
                 
                 if promedio_final >= 3.0:
                     st.success("¡Felicidades! 🎉 Has Aprobado la evaluación.")
-                    update_user_points(st.session_state.current_user, 20) # Añadir puntos por aprobar
+                    update_user_points(st.session_state.current_user, 20)
                     send_completion_notification(st.session_state.current_user, quiz_data["topic"], promedio_final)
                 else:
                     st.error("Lo siento. 😔 No has aprobado la evaluación.")
                     st.warning(f"Ruta de Aprendizaje Personalizada: Te recomendamos repasar el tema '{quiz_data['topic']}' y sus documentos de apoyo para mejorar tus conocimientos.")
-                    update_user_points(st.session_state.current_user, 5) # Puntos de participación
+                    update_user_points(st.session_state.current_user, 5)
                     
                 st.session_state.escuelas[quiz_data["school"]][quiz_data["topic"]]["evaluado"] = True
                 st.session_state.escuelas[quiz_data["school"]][quiz_data["topic"]]["puntaje"] = promedio_final
@@ -683,7 +679,7 @@ with tab3:
                     st.markdown(f"**Calificación:** {quiz_data['scores'][i]['score']}/5 - {quiz_data['scores'][i]['feedback']}")
                     st.write("---")
                 
-                if st.button("Finalizar y Volver al Menú"):
+                if st.button("Finalizar y Volver al Menú", use_container_width=True):
                     st.session_state.current_quiz["active"] = False
                     st.rerun()
 
@@ -732,7 +728,7 @@ with tab3:
         scenario = st.text_input("Ingresa el escenario de servicio al cliente:")
         if scenario:
             user_response = st.text_area("Describe cómo manejarías este caso:")
-            if st.button("Evaluar mi Simulación"):
+            if st.button("Evaluar mi Simulación", use_container_width=True):
                 if not user_response:
                     st.warning("Por favor, escribe tu respuesta antes de evaluar.")
                 else:
@@ -742,9 +738,8 @@ with tab3:
                         st.write("---")
                         st.subheader("Resultado de la Simulación")
                         st.info(evaluation_result)
-                        update_user_points(st.session_state.current_user, 10) # Puntos por simulación
+                        update_user_points(st.session_state.current_user, 10)
 
-    # Sección de Módulo Interactivo
     st.header("6. Módulo Interactivo")
     generate_interactive_quiz()
 
@@ -765,7 +760,7 @@ with tab4:
             direccion_usuario = st.text_input("Dirección:")
             rol_usuario = st.text_input("Cargo:")
             
-            submitted = st.form_submit_button("Agregar Usuario")
+            submitted = st.form_submit_button("Agregar Usuario", use_container_width=True)
             
             if submitted:
                 if nombre_usuario and cedula_usuario and correo_usuario:
@@ -805,7 +800,7 @@ with tab4:
             if df_preview_user is not None:
                 st.dataframe(df_preview_user, use_container_width=True)
                 
-                if st.button("Aceptar cambios y crear usuarios"):
+                if st.button("Aceptar cambios y crear usuarios", use_container_width=True):
                     users_added_count = add_users_from_dataframe(df_preview_user)
                     st.success(f"✅ Se han creado {users_added_count} usuarios exitosamente.")
                     st.rerun()
@@ -819,26 +814,25 @@ with tab5:
     if school_to_modify:
         st.subheader(f"Módulos de la Escuela: {school_to_modify}")
 
-        # Formulario para agregar un nuevo módulo
-        with st.form("add_module_form", clear_on_submit=True):
-            st.markdown("#### **Agregar Nuevo Módulo**")
-            new_module_name = st.text_input("Nombre del Módulo:")
-            new_module_duration = st.text_input("Duración (ej. 2 horas):")
-            
-            if st.form_submit_button("➕ Agregar Módulo"):
-                if new_module_name:
-                    if new_module_name not in st.session_state.escuelas[school_to_modify]:
-                        st.session_state.escuelas[school_to_modify][new_module_name] = {
-                            "evaluado": False, 
-                            "puntaje": 0, 
-                            "duracion": new_module_duration
-                        }
-                        st.success(f"Módulo '{new_module_name}' agregado a la escuela '{school_to_modify}'.")
+        with st.expander("➕ **Agregar Nuevo Módulo**"):
+            with st.form("add_module_form", clear_on_submit=True):
+                new_module_name = st.text_input("Nombre del Módulo:")
+                new_module_duration = st.text_input("Duración (ej. 2 horas):")
+                
+                if st.form_submit_button("Agregar Módulo", use_container_width=True):
+                    if new_module_name:
+                        if new_module_name not in st.session_state.escuelas[school_to_modify]:
+                            st.session_state.escuelas[school_to_modify][new_module_name] = {
+                                "evaluado": False, 
+                                "puntaje": 0, 
+                                "duracion": new_module_duration
+                            }
+                            st.success(f"Módulo '{new_module_name}' agregado a la escuela '{school_to_modify}'.")
+                        else:
+                            st.warning(f"El módulo '{new_module_name}' ya existe en esta escuela.")
+                        st.rerun()
                     else:
-                        st.warning(f"El módulo '{new_module_name}' ya existe en esta escuela.")
-                    st.rerun()
-                else:
-                    st.error("Por favor, ingresa el nombre del módulo.")
+                        st.error("Por favor, ingresa el nombre del módulo.")
 
         st.markdown("---")
         st.markdown("#### **Lista de Módulos**")
@@ -853,21 +847,19 @@ with tab5:
         
         st.dataframe(modules_data, use_container_width=True)
         
-        st.markdown("#### **Eliminar Módulo**")
-        modulo_a_eliminar = st.selectbox("Selecciona un módulo para eliminar:", options=list(st.session_state.escuelas[school_to_modify].keys()))
-        if st.button("🗑️ Eliminar Módulo"):
-            if modulo_a_eliminar:
-                del st.session_state.escuelas[school_to_modify][modulo_a_eliminar]
-                st.success(f"Módulo '{modulo_a_eliminar}' eliminado de la escuela '{school_to_modify}'.")
-                st.rerun()
+        with st.expander("🗑️ **Eliminar Módulo**"):
+            modulo_a_eliminar = st.selectbox("Selecciona un módulo para eliminar:", options=list(st.session_state.escuelas[school_to_modify].keys()))
+            if st.button("Eliminar Módulo", use_container_width=True):
+                if modulo_a_eliminar:
+                    del st.session_state.escuelas[school_to_modify][modulo_a_eliminar]
+                    st.success(f"Módulo '{modulo_a_eliminar}' eliminado de la escuela '{school_to_modify}'.")
+                    st.rerun()
 
 with tab6:
     st.header("📊 Analíticas y Reportes")
-    st.write("Una visión general del progreso de los usuarios y el rendimiento de los temas de capacitación.")
+    st.markdown("Una visión general del progreso de los usuarios y el rendimiento de los temas de capacitación.")
 
-    # 1. Reporte de Progreso de Usuarios
-    st.subheader("1. Progreso General de Usuarios")
-    
+    st.markdown("#### **1. Progreso General de Usuarios**")
     analytics_data = []
     for user, data in st.session_state.users.items():
         total_temas_completados = sum(len(temas) for temas in data["temas_completados"].values())
@@ -880,19 +872,14 @@ with tab6:
             "Módulos Completados": total_temas_completados,
             "Puntaje Promedio": promedio_final,
         })
-    
     df_analytics = pd.DataFrame(analytics_data)
-    
     if not df_analytics.empty:
         st.dataframe(df_analytics, use_container_width=True)
     else:
         st.info("Aún no hay datos de usuarios para mostrar.")
-    
     st.markdown("---")
 
-    # 2. Rendimiento por Tema
-    st.subheader("2. Rendimiento Promedio por Módulo")
-    
+    st.markdown("#### **2. Rendimiento Promedio por Módulo**")
     tema_scores = {}
     for user, data in st.session_state.users.items():
         for escuela, temas in data["temas_completados"].items():
@@ -900,42 +887,33 @@ with tab6:
                 if tema not in tema_scores:
                     tema_scores[tema] = []
                 tema_scores[tema].append(puntaje)
-
     if tema_scores:
         promedios_tema = {tema: sum(scores) / len(scores) for tema, scores in tema_scores.items()}
         df_promedios = pd.DataFrame(promedios_tema.items(), columns=["Módulo", "Puntaje Promedio"])
         st.bar_chart(df_promedios, x="Módulo", y="Puntaje Promedio")
-        
-        st.write("Este gráfico muestra el puntaje promedio de todos los usuarios por cada módulo completado. Las puntuaciones más bajas pueden indicar un tema que requiere más atención o una actualización de los materiales de capacitación.")
     else:
         st.info("Aún no hay módulos completados para generar el gráfico de rendimiento.")
-
     st.markdown("---")
 
-    # 3. Puntaje Promedio por Escuela
-    st.subheader("3. Puntaje Promedio por Escuela")
+    st.markdown("#### **3. Puntaje Promedio por Escuela**")
     school_scores = {}
     for school, topics in st.session_state.escuelas.items():
         total_score = 0
         evaluated_topics = 0
         for topic, data in topics.items():
-            if data["evaluado"]:
+            if data.get("evaluado"):
                 total_score += data["puntaje"]
                 evaluated_topics += 1
         if evaluated_topics > 0:
             school_scores[school] = total_score / evaluated_topics
-    
     if school_scores:
         df_school_scores = pd.DataFrame(school_scores.items(), columns=["Escuela", "Puntaje Promedio"])
         st.bar_chart(df_school_scores, x="Escuela", y="Puntaje Promedio")
-        st.write("Este gráfico muestra la calificación promedio de los módulos evaluados por escuela. Es un indicador clave del rendimiento general de cada área de capacitación.")
     else:
         st.info("No hay suficientes datos para generar el gráfico de rendimiento por escuela.")
-
     st.markdown("---")
 
-    # 4. Top 5 Temas Mejor Puntuados
-    st.subheader("4. Top 5 Temas Mejor Puntuados")
+    st.markdown("#### **4. Top 5 Temas Mejor Puntuados**")
     if tema_scores:
         promedios_tema = {tema: sum(scores) / len(scores) for tema, scores in tema_scores.items()}
         top_5_temas = sorted(promedios_tema.items(), key=lambda item: item[1], reverse=True)[:5]
@@ -943,25 +921,18 @@ with tab6:
         st.table(df_top_5)
     else:
         st.info("Aún no hay módulos completados para mostrar el ranking.")
-
     st.markdown("---")
-    
-    # 5. Distribución de Puntos por Usuario
-    st.subheader("5. Distribución de Puntos por Usuario")
+
+    st.markdown("#### **5. Distribución de Puntos por Usuario**")
     if not df_analytics.empty:
         df_analytics_points = df_analytics[["Usuario", "Puntos"]]
         st.bar_chart(df_analytics_points, x="Usuario", y="Puntos")
-        st.write("Este gráfico muestra los puntos de gamificación de cada usuario, lo que permite visualizar a los usuarios más activos y comprometidos.")
     else:
         st.info("No hay datos de puntos de usuario para mostrar.")
 
 with tab7:
-    # --- Pestaña de Asignar Alumnos ---
     st.header("👩‍🏫 Asignar Alumnos")
-    st.write("---")
     st.markdown("#### **Bienvenido a esta sección: asigna usuarios, de forma individual o masiva, a un tema o escuela específica.**")
-
-    # Opciones de asignación
     assignment_type = st.radio("Elige el tipo de asignación:", ("Asignación Única", "Asignación Masiva"))
 
     if assignment_type == "Asignación Única":
@@ -974,9 +945,7 @@ with tab7:
             cargo = st.text_input("Cargo:")
             direccion = st.text_input("Dirección:")
             area = st.text_input("Área:")
-            
-            submit_unica = st.form_submit_button("Asignar Alumno")
-            
+            submit_unica = st.form_submit_button("Asignar Alumno", use_container_width=True)
             if submit_unica:
                 if nombre and cedula and correo:
                     if nombre not in st.session_state.users:
@@ -1003,18 +972,14 @@ with tab7:
     elif assignment_type == "Asignación Masiva":
         st.subheader("Asignación Masiva")
         st.write("Carga un archivo PDF o Excel con los campos: Empresa, Cédula, Nombre, Correo, Cargo, Dirección, Área.")
-        
         uploaded_file_mass = st.file_uploader("Selecciona el archivo para asignación masiva", type=["pdf", "xlsx"])
-        
         if uploaded_file_mass:
             st.write("---")
             st.subheader("Vista Previa de la Carga")
             df_preview = load_and_process_students(uploaded_file_mass)
-            
             if df_preview is not None:
                 st.dataframe(df_preview, use_container_width=True)
-                
-                if st.button("Aceptar cambios"):
+                if st.button("Aceptar cambios", use_container_width=True):
                     for index, row in df_preview.iterrows():
                         nombre_alumno = row["Nombre"]
                         if nombre_alumno not in st.session_state.users:
@@ -1037,59 +1002,42 @@ with tab7:
                     st.rerun()
 
 with tab8:
-    # --- Pestaña de Agendamiento de Clases ---
     st.header("📅 Agendamiento de Clases")
     st.write("---")
-    
     col1, col2 = st.columns(2)
-    
     with col1:
         st.subheader("Calendario Académico")
-        
         clase_date = st.date_input("Selecciona la fecha de la clase", datetime.now())
         clase_time = st.time_input("Selecciona la hora de la clase", time(10, 0))
-        
-        st.write(f"**Fecha y Hora Seleccionada:** {clase_date.strftime('%d/%m/%Y')} a las {clase_time.strftime('%H:%M')}")
-        
+        st.info(f"**Fecha y Hora Seleccionada:** {clase_date.strftime('%d/%m/%Y')} a las {clase_time.strftime('%H:%M')}")
     with col2:
         st.subheader("Información de la Clase")
-        
         clase_asunto = st.text_input("Asunto:")
         clase_cuerpo = st.text_area("Cuerpo del mensaje:")
-        
     st.markdown("---")
     st.subheader("Seleccionar Alumnos")
-    
     selection_mode = st.radio("Modo de selección:", ("Selección Individual", "Selección Masiva"))
-    
     selected_alumnos = []
-    
     if selection_mode == "Selección Individual":
         alumnos_list = list(st.session_state.users.keys())
         selected_alumnos = st.multiselect("Selecciona los alumnos de la lista:", alumnos_list)
-        
     elif selection_mode == "Selección Masiva":
         uploaded_file_agendamiento = st.file_uploader("Carga un archivo PDF o Excel para la selección masiva de alumnos", type=["pdf", "xlsx"])
-        
         if uploaded_file_agendamiento:
             st.info("Vista previa de los alumnos a seleccionar:")
             df_alumnos_preview = load_and_process_students(uploaded_file_agendamiento)
             if df_alumnos_preview is not None:
                 st.dataframe(df_alumnos_preview, use_container_width=True)
-                
-                if st.button("Aceptar y seleccionar alumnos"):
+                if st.button("Aceptar y seleccionar alumnos", use_container_width=True):
                     selected_alumnos = df_alumnos_preview["Nombre"].tolist()
                     st.session_state["selected_alumnos_agendamiento"] = selected_alumnos
                     st.success(f"✅ Se han seleccionado {len(selected_alumnos)} alumnos del archivo.")
                     st.rerun()
-        
         if "selected_alumnos_agendamiento" in st.session_state:
             selected_alumnos = st.session_state["selected_alumnos_agendamiento"]
             st.write(f"**Alumnos seleccionados:** {', '.join(selected_alumnos)}")
-
     st.markdown("---")
-    
-    if st.button("Enviar Citación"):
+    if st.button("Enviar Citación", use_container_width=True):
         final_selected_alumnos = selected_alumnos
         if not final_selected_alumnos:
             st.error("Por favor, selecciona al menos un alumno para enviar la citación.")
@@ -1099,7 +1047,6 @@ with tab8:
             with st.spinner("Enviando citaciones..."):
                 st.success("✅ **¡Citación Enviada!**")
                 st.info(f"Citación enviada a {len(final_selected_alumnos)} alumno(s).")
-                
                 st.write("---")
                 st.subheader("Resumen de la Citación")
                 st.write(f"**Fecha:** {clase_date.strftime('%d/%m/%Y')}")
