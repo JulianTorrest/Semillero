@@ -147,8 +147,6 @@ if uploaded_files:
                         os.remove(os.path.join(temp_dir, path))
                     os.rmdir(temp_dir)
 
----
-
 ### **Módulo de Preguntas y Respuestas (Chat con Mentor.IA)**
 st.header("2. Preguntas y Respuestas")
 
