@@ -131,7 +131,7 @@ def grade_case_simulation(rag_chain, user_answer, scenario):
     2.  **Tono y Profesionalismo (0-5):** ¿El tono es apropiado y profesional?
     3.  **Empatía (0-5):** ¿La respuesta muestra comprensión y empatía hacia el cliente?
 
-    Proporciona un feedback constructivo para cada criterio y una calificación final consolidada del 0 al 5.
+    Proporciona un feedback constructivo para cada criterio y una calificación final consolidada del 0 a 5.
     
     Formato de la respuesta:
     Calificación Final: [0-5]
@@ -164,7 +164,7 @@ def check_and_award_badges(username, temas, quiz_scores):
             awarded_badges.append("Genio de la Cartera 🧠")
 
     # Insignia: Primer Paso (al completar la primera evaluación)
-    if temas["evaluado"] and len(st.session_state.users[username]["temas_completados"]) == 1:
+    if temas["evaluado"] and sum(len(escuelas) for escuelas in st.session_state.users[username]["temas_completados"].values()) == 1:
         if "Primer Paso 👣" not in st.session_state.users[username]["badges"]:
             st.session_state.users[username]["badges"].append("Primer Paso 👣")
             awarded_badges.append("Primer Paso 👣")
@@ -202,32 +202,8 @@ def load_users():
             }
         }
     
-    # Nueva estructura para escuelas y temas
-    if "escuelas" not in st.session_state:
-        st.session_state.escuelas = {
-            "Escuela DataPro": {
-                "Tipos de clientes y manejo": {"evaluado": True, "puntaje": 4.5},
-                "Negociación de pagos": {"evaluado": True, "puntaje": 4.2},
-                "Recuperación de cartera": {"evaluado": False, "puntaje": 0},
-            },
-            "Escuela de Cobradores": {
-                "Técnicas de persuasión": {"evaluado": False, "puntaje": 0},
-                "Manejo de objeciones": {"evaluado": False, "puntaje": 0},
-                "Cierre de acuerdos de pago": {"evaluado": False, "puntaje": 0},
-            },
-            "Escuela de Verificadores": {
-                "Validación de datos": {"evaluado": False, "puntaje": 0},
-                "Normatividad vigente": {"evaluado": False, "puntaje": 0},
-            },
-            "Escuela de Atención al Cliente": {
-                "Protocolo de llamadas": {"evaluado": False, "puntaje": 0},
-                "Solución de conflictos": {"evaluado": False, "puntaje": 0},
-            }
-        }
-    
     # Sincronizar temas completados con la nueva estructura
     for user, data in st.session_state.users.items():
-        # Verificamos si 'temas_completados' es un diccionario antes de iterar
         if isinstance(data.get("temas_completados"), dict):
             for escuela, temas in data["temas_completados"].items():
                 if isinstance(temas, dict):
@@ -242,7 +218,26 @@ st.title("Mentor.IA 🤖")
 
 # --- Inicialización del Estado de la Sesión ---
 if "escuelas" not in st.session_state:
-    st.session_state.escuelas = {}
+    st.session_state.escuelas = {
+        "Escuela DataPro": {
+            "Tipos de clientes y manejo": {"evaluado": False, "puntaje": 0},
+            "Negociación de pagos": {"evaluado": False, "puntaje": 0},
+            "Recuperación de cartera": {"evaluado": False, "puntaje": 0},
+        },
+        "Escuela de Cobradores": {
+            "Técnicas de persuasión": {"evaluado": False, "puntaje": 0},
+            "Manejo de objeciones": {"evaluado": False, "puntaje": 0},
+            "Cierre de acuerdos de pago": {"evaluado": False, "puntaje": 0},
+        },
+        "Escuela de Verificadores": {
+            "Validación de datos": {"evaluado": False, "puntaje": 0},
+            "Normatividad vigente": {"evaluado": False, "puntaje": 0},
+        },
+        "Escuela de Atención al Cliente": {
+            "Protocolo de llamadas": {"evaluado": False, "puntaje": 0},
+            "Solución de conflictos": {"evaluado": False, "puntaje": 0},
+        }
+    }
 if "vector_store" not in st.session_state:
     st.session_state.vector_store = None
 if "current_quiz" not in st.session_state:
