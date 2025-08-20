@@ -195,11 +195,45 @@ def load_users():
                 "badges": []
             }
         }
+    # Asegura que los temas de los usuarios existan en st.session_state.temas
+    for user, data in st.session_state.users.items():
+        for tema, puntaje in data["temas_completados"].items():
+            if tema not in st.session_state.temas:
+                st.session_state.temas[tema] = {"evaluado": True, "puntaje": puntaje, "contenido_cargado": False}
 
 # --- Configuración y Título ---
 st.set_page_config(page_title="Mentor.IA - Finanzauto", layout="wide")
 st.title("Mentor.IA 🤖")
+
+# --- Inicialización del Estado de la Sesión ---
+if "temas" not in st.session_state:
+    st.session_state.temas = {}
+if "vector_store" not in st.session_state:
+    st.session_state.vector_store = None
+if "current_quiz" not in st.session_state:
+    st.session_state.current_quiz = {
+        "active": False,
+        "topic": "",
+        "questions": [],
+        "correct_answers": [],
+        "answers": [],
+        "scores": [],
+        "current_q_index": 0,
+        "final_score": 0
+    }
+if "learning_paths" not in st.session_state:
+    st.session_state.learning_paths = {}
+
 load_users()
+
+def get_topics_from_files(uploaded_files):
+    """Extrae los nombres de los archivos como temas de capacitación."""
+    for file in uploaded_files:
+        topic_name = os.path.splitext(file.name)[0].replace("_", " ").title()
+        if topic_name not in st.session_state.temas:
+            st.session_state.temas[topic_name] = {"evaluado": False, "puntaje": 0, "contenido_cargado": True}
+        if topic_name not in st.session_state.learning_paths:
+            st.session_state.learning_paths[topic_name] = None
 
 # --- Barra Lateral (Menú y Perfil de Usuario) ---
 with st.sidebar:
@@ -402,10 +436,8 @@ else:
             st.session_state.temas[quiz_data["topic"]]["evaluado"] = True
             st.session_state.temas[quiz_data["topic"]]["puntaje"] = promedio_final
             
-            # Actualizar el perfil del usuario con el tema completado
             st.session_state.users[current_user]["temas_completados"][quiz_data["topic"]] = promedio_final
             
-            # Verificar y otorgar insignias
             new_badges = check_and_award_badges(current_user, {"topic": quiz_data["topic"], "evaluado": True, "puntaje": promedio_final}, quiz_data["scores"])
             if new_badges:
                 st.balloons()
@@ -438,7 +470,7 @@ else:
         st.write("---")
         st.subheader(f"Ruta de Aprendizaje: {selected_path_topic}")
         
-        if st.session_state.temas[selected_path_topic]["contenido_cargado"] and st.session_state.vector_store is not None:
+        if st.session_state.temas.get(selected_path_topic, {}).get("contenido_cargado") and st.session_state.vector_store is not None:
             with st.spinner("Generando contenido de la ruta de aprendizaje..."):
                 rag_chain = get_qa_chain(st.session_state.vector_store)
                 content = generate_learning_path_content(rag_chain, selected_path_topic)
