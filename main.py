@@ -15,39 +15,76 @@ from PIL import Image
 from unstructured.partition.auto import partition
 from unstructured.staging.base import elements_to_json
 
+# --- Estilos CSS Inyectados ---
 st.markdown("""
 <style>
-    /* Estilos generales */
+    /* Estilos generales del cuerpo de la aplicación */
     .stApp {
-        background-color: #f0f2f6; /* Color de fondo del body */
-        color: #333;
+        background-color: #f0f2f6; /* Fondo gris claro */
+        color: #333333; /* Color de texto oscuro */
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     }
 
-    /* Estilos de los contenedores y tarjetas */
-    .stContainer, .st-expander {
-        border-radius: 10px;
+    /* Estilos para los contenedores (las "tarjetas") */
+    .stContainer {
+        background-color: #ffffff; /* Fondo blanco para los contenedores */
+        border-radius: 12px;
         box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-        padding: 20px;
+        padding: 25px;
         margin-bottom: 20px;
+    }
+    
+    /* Estilos para los expanders */
+    .st-expander {
+        border-radius: 12px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
+        background-color: #f7f7f7;
+    }
+    .st-expander .st-emotion-cache-1c7v0z {
+        background-color: #f7f7f7;
     }
 
     /* Estilos de los títulos */
     h1, h2, h3, h4, h5, h6 {
-        color: #003366; /* Color de títulos de Finanzauto */
+        color: #003366; /* Azul corporativo */
+        font-weight: 600;
     }
 
-    /* Estilos de los botones */
+    /* Estilos de los botones primarios */
     .st-emotion-cache-1c7v0z {
-        background-color: #003366; /* Color principal de Finanzauto */
+        background-color: #003366;
         color: white;
-        border-radius: 5px;
+        border-radius: 8px;
+        font-weight: bold;
     }
-
-    /* Otros estilos... */
+    
+    /* Estilos para los botones secundarios */
+    .st-emotion-cache-1c7v0z {
+        border-color: #003366;
+        color: #003366;
+    }
+    
+    /* Estilo para los mensajes de éxito y advertencia */
+    .stAlert.success {
+        background-color: #d4edda;
+        color: #155724;
+        border-radius: 8px;
+    }
+    .stAlert.info {
+        background-color: #d1ecf1;
+        color: #0c5460;
+        border-radius: 8px;
+    }
+    .stAlert.warning {
+        background-color: #fff3cd;
+        color: #856404;
+        border-radius: 8px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# --- Funciones Auxiliares ---
+# --- Funciones Auxiliares (sin cambios) ---
+
 def get_qa_chain(vector_store, model_name="gemini-2.0-flash"):
     """Crea y retorna la cadena RAG para preguntas y respuestas."""
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
@@ -458,37 +495,39 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs(["👤 Perfil", "🎓 E
 with tab1:
     # --- Perfil de Usuario ---
     st.header("👤 Perfil de Usuario")
+    st.info(f"¡Bienvenido, **{st.session_state.current_user}**! Aquí puedes ver tu progreso y logros.")
     st.write("---")
-    current_user = st.session_state.current_user
-    st.info(f"¡Bienvenido, **{current_user}**! Aquí puedes ver tu progreso y logros.")
 
-    st.subheader("Estado de Nivel")
     col1_p, col2_p, col3_p = st.columns(3)
     
     with col1_p:
-        total_temas_completados = sum(len(temas) for temas in st.session_state.users[current_user]["temas_completados"].values())
+        total_temas_completados = sum(len(temas) for temas in st.session_state.users[st.session_state.current_user]["temas_completados"].values())
         st.metric(label="Módulos Completados", value=f"{total_temas_completados}")
 
     with col2_p:
         total_puntaje = 0
         total_temas = 0
-        for escuela, temas in st.session_state.users[current_user]["temas_completados"].items():
+        for escuela, temas in st.session_state.users[st.session_state.current_user]["temas_completados"].items():
             total_puntaje += sum(temas.values())
             total_temas += len(temas)
         promedio_general = total_puntaje / total_temas if total_temas > 0 else 0
         st.metric(label="Puntaje Promedio General", value=f"{promedio_general:.1f}/5")
 
     with col3_p:
-        st.metric(label="Nivel Actual", value=st.session_state.users[current_user]["nivel"])
+        st.metric(label="Nivel Actual", value=st.session_state.users[st.session_state.current_user]["nivel"])
 
     st.write("---")
-    st.subheader("Gamificación y Logros")
-    st.metric(label="Puntos Totales", value=st.session_state.users[current_user]["puntos"])
+    st.subheader("Gamificación")
+    col_puntos, col_nivel = st.columns(2)
+    with col_puntos:
+        st.metric(label="Puntos Totales", value=st.session_state.users[st.session_state.current_user]["puntos"])
+    with col_nivel:
+        st.metric(label="Nivel Actual", value=st.session_state.users[st.session_state.current_user]["nivel"])
     
     st.subheader("Mis Insignias")
-    if st.session_state.users[current_user]["badges"]:
+    if st.session_state.users[st.session_state.current_user]["badges"]:
         st.success("¡Has ganado estas insignias!")
-        for badge in st.session_state.users[current_user]["badges"]:
+        for badge in st.session_state.users[st.session_state.current_user]["badges"]:
             st.write(f"🏅 **{badge}**")
     else:
         st.info("Aún no tienes insignias. ¡Completa módulos para ganar la primera!")
