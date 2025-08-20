@@ -20,27 +20,55 @@ def get_qa_chain(vector_store, model_name="gemini-2.0-flash"):
         retriever=vector_store.as_retriever()
     )
     return rag_chain
-
-def generate_questions(rag_chain, num_questions=10):
-    """Genera una lista de preguntas aleatorias basadas en el contenido."""
+    
+def generate_questions_and_answers(vector_store, num_questions=10):
+    """
+    Genera preguntas y respuestas únicas y las almacena.
+    Selecciona fragmentos de texto aleatorios para garantizar la unicidad.
+    """
     questions = []
-    for _ in range(num_questions):
-        prompt = "Genera una pregunta de una sola oración que se pueda responder directamente con el contenido de los documentos. La pregunta debe ser clara y concisa."
-        try:
-            question = rag_chain.invoke(prompt)
-            questions.append(question["result"])
-        except Exception as e:
-            st.error(f"Error generando la pregunta {_ + 1}: {e}")
-            return []
-    return questions
+    answers = []
+    
+    # Obtener todos los documentos (splits) para seleccionar aleatoriamente
+    all_splits = vector_store.as_retriever().get_relevant_documents("")
+    if len(all_splits) < num_questions:
+        st.error(f"Se necesitan al menos {num_questions} fragmentos de texto para generar el quiz, pero solo se encontraron {len(all_splits)}.")
+        return [], []
+    
+    selected_splits = random.sample(all_splits, num_questions)
+    
+    llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash", google_api_key=st.secrets["GOOGLE_API_KEY"])
+    
+    for split in selected_splits:
+        # Prompt para generar la pregunta basada en un fragmento específico
+        prompt_q = f"""
+        Usando este fragmento de texto:
+        "{split.page_content}"
+        Genera una pregunta de una sola oración que se pueda responder con la información de este fragmento. La pregunta debe ser clara y concisa.
+        """
+        question = llm.invoke(prompt_q).content
+        questions.append(question)
+        
+        # Prompt para generar la respuesta correcta basada en el fragmento
+        prompt_a = f"""
+        Usando este fragmento de texto:
+        "{split.page_content}"
+        Responde a la pregunta: "{question}"
+        Tu respuesta debe ser directa, concisa y basada únicamente en el fragmento de texto proporcionado.
+        """
+        answer = llm.invoke(prompt_a).content
+        answers.append(answer)
+        
+    return questions, answers
 
-def grade_answer(rag_chain, user_answer, question):
+def grade_answer(rag_chain, user_answer, question, correct_answer):
     """Evalúa la respuesta del usuario y asigna un puntaje de 0 a 5."""
     prompt = f"""
     Eres un evaluador experto. Tu tarea es calificar las respuestas de los usuarios a una pregunta basada en documentos de capacitación.
 
     Pregunta: "{question}"
     Respuesta del usuario: "{user_answer}"
+    Respuesta correcta (extraída del documento): "{correct_answer}"
     
     Da una calificación del 0 al 5, donde:
     5: La respuesta es excelente, completa y precisa.
@@ -58,7 +86,6 @@ def grade_answer(rag_chain, user_answer, question):
     """
     try:
         evaluation = rag_chain.invoke(prompt)
-        # Limpiar la respuesta para extraer la calificación
         score = 0
         feedback = "No se pudo obtener el feedback."
         lines = evaluation["result"].split('\n')
@@ -89,6 +116,7 @@ if "current_quiz" not in st.session_state:
         "active": False,
         "topic": "",
         "questions": [],
+        "correct_answers": [],
         "answers": [],
         "scores": [],
         "current_q_index": 0,
@@ -116,7 +144,6 @@ with st.sidebar:
     temas_evaluados = [t for t in st.session_state.temas.values() if t["evaluado"]]
     total_temas = len(st.session_state.temas)
     
-    # Nuevo cálculo de la calificación promedio para toda la escuela
     if temas_evaluados:
         promedio_finalizados = sum(t["puntaje"] for t in temas_evaluados) / len(temas_evaluados)
     else:
@@ -236,12 +263,20 @@ else:
             with st.spinner(f"Generando 10 preguntas sobre '{selected_topic}'..."):
                 st.session_state.current_quiz["active"] = True
                 st.session_state.current_quiz["topic"] = selected_topic
-                st.session_state.current_quiz["questions"] = generate_questions(get_qa_chain(st.session_state.vector_store), num_questions=10)
-                st.session_state.current_quiz["answers"] = []
-                st.session_state.current_quiz["scores"] = []
-                st.session_state.current_quiz["current_q_index"] = 0
-                st.session_state.current_quiz["final_score"] = 0
-                st.rerun()
+                questions, correct_answers = generate_questions_and_answers(st.session_state.vector_store, num_questions=10)
+                
+                if questions and correct_answers:
+                    st.session_state.current_quiz["questions"] = questions
+                    st.session_state.current_quiz["correct_answers"] = correct_answers
+                    st.session_state.current_quiz["answers"] = []
+                    st.session_state.current_quiz["scores"] = []
+                    st.session_state.current_quiz["current_q_index"] = 0
+                    st.session_state.current_quiz["final_score"] = 0
+                    st.rerun()
+                else:
+                    st.session_state.current_quiz["active"] = False
+                    st.error("No se pudieron generar las preguntas. Por favor, asegúrate de que los documentos contienen suficiente información.")
+
 
     if st.session_state.current_quiz["active"]:
         quiz_data = st.session_state.current_quiz
@@ -256,7 +291,7 @@ else:
                 if not user_answer:
                     st.warning("Por favor, escribe tu respuesta antes de continuar.")
                 else:
-                    score, feedback = grade_answer(get_qa_chain(st.session_state.vector_store), user_answer, quiz_data["questions"][current_q_index])
+                    score, feedback = grade_answer(get_qa_chain(st.session_state.vector_store), user_answer, quiz_data["questions"][current_q_index], quiz_data["correct_answers"][current_q_index])
                     quiz_data["answers"].append(user_answer)
                     quiz_data["scores"].append({"score": score, "feedback": feedback})
                     quiz_data["current_q_index"] += 1
