@@ -1,5 +1,6 @@
 import streamlit as st
 import os
+import io
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.embeddings import HuggingFaceEmbeddings
@@ -10,6 +11,8 @@ import google.generativeai as genai
 import random
 import pandas as pd
 from PIL import Image
+from unstructured.partition.auto import partition
+from unstructured.staging.base import elements_to_json
 
 # --- Funciones Auxiliares ---
 
@@ -425,10 +428,12 @@ with tab2:
 with tab3:
     # --- Contenido de la pestaña de Evaluación ---
     st.header("1. Carga de Documentos")
-    st.write("Sube uno o varios archivos PDF para crear la base de conocimiento.")
+    st.write("Sube archivos en formato **PDF, DOCX, XLSX, PPTX o imágenes (.png, .jpg)** para crear la base de conocimiento.")
     
     uploaded_files = st.file_uploader(
-        "Selecciona los archivos", type=["pdf"], accept_multiple_files=True
+        "Selecciona los archivos", 
+        type=["pdf", "docx", "pptx", "xlsx", "png", "jpg", "jpeg"], 
+        accept_multiple_files=True
     )
 
     if uploaded_files:
@@ -437,9 +442,11 @@ with tab3:
                 try:
                     all_text = ""
                     for uploaded_file in uploaded_files:
-                        if uploaded_file.type == "application/pdf":
+                        file_type = uploaded_file.type
+                        
+                        if file_type == "application/pdf":
                             # Procesar PDF
-                            temp_dir = "temp_pdfs"
+                            temp_dir = "temp_files"
                             if not os.path.exists(temp_dir): os.makedirs(temp_dir)
                             file_path = os.path.join(temp_dir, uploaded_file.name)
                             with open(file_path, "wb") as f:
@@ -449,6 +456,41 @@ with tab3:
                             for doc in docs:
                                 all_text += doc.page_content
                             os.remove(file_path)
+                            st.success(f"✅ Documento PDF '{uploaded_file.name}' procesado.")
+
+                        elif file_type in ["application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/vnd.openxmlformats-officedocument.presentationml.presentation"]:
+                            # Procesar DOCX y PPTX
+                            elements = partition(file=uploaded_file)
+                            text_content = "\n\n".join([str(e) for e in elements])
+                            all_text += text_content
+                            st.success(f"✅ Documento de texto '{uploaded_file.name}' procesado.")
+
+                        elif file_type == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
+                            # Procesar XLSX
+                            df = pd.read_excel(uploaded_file, sheet_name=None)
+                            excel_text = ""
+                            for sheet_name, sheet_df in df.items():
+                                excel_text += f"\n--- Datos de la Hoja: {sheet_name} ---\n"
+                                excel_text += sheet_df.to_string(index=False)
+                                excel_text += "\n"
+                            all_text += excel_text
+                            st.success(f"✅ Documento de Excel '{uploaded_file.name}' procesado.")
+                        
+                        elif file_type in ["image/png", "image/jpeg"]:
+                            # Procesar Imágenes (usando la capacidad de visión de Gemini)
+                            st.info(f"Procesando imagen: {uploaded_file.name}")
+                            img_bytes = uploaded_file.read()
+                            img_model = genai.GenerativeModel('gemini-1.5-pro-latest')
+                            
+                            # Cargar imagen y convertirla a formato compatible
+                            img = Image.open(io.BytesIO(img_bytes))
+                            
+                            prompt_img = """
+                            Describe en detalle el contenido de esta imagen para que pueda ser utilizado como texto en una base de conocimiento. Incluye todo el texto visible, tablas, gráficos y cualquier otra información relevante.
+                            """
+                            response = img_model.generate_content([prompt_img, img])
+                            all_text += response.text
+                            st.success(f"✅ Imagen '{uploaded_file.name}' procesada.")
 
                     text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
                     splits = text_splitter.split_text(all_text)
@@ -458,12 +500,12 @@ with tab3:
                     
                     vector_store = FAISS.from_texts(splits, embeddings)
                     st.session_state.vector_store = vector_store
-                    st.success("✅ Documentos procesados y base de conocimiento creada. ¡Ahora puedes hacer preguntas!")
+                    st.success("✅ Base de conocimiento actualizada. ¡Ahora puedes hacer preguntas!")
                     
                 except Exception as e:
                     st.error(f"❌ Ocurrió un error durante el procesamiento: {e}")
                 finally:
-                    # Se eliminan los archivos temporales después del procesamiento
+                    # Limpiar el directorio temporal
                     pass
 
     st.header("2. Preguntas y Respuestas")
@@ -773,3 +815,48 @@ with tab6:
         st.write("Este gráfico muestra el puntaje promedio de todos los usuarios por cada módulo completado. Las puntuaciones más bajas pueden indicar un tema que requiere más atención o una actualización de los materiales de capacitación.")
     else:
         st.info("Aún no hay módulos completados para generar el gráfico de rendimiento.")
+
+    st.markdown("---")
+
+    # 3. Puntaje Promedio por Escuela
+    st.subheader("3. Puntaje Promedio por Escuela")
+    school_scores = {}
+    for school, topics in st.session_state.escuelas.items():
+        total_score = 0
+        evaluated_topics = 0
+        for topic, data in topics.items():
+            if data["evaluado"]:
+                total_score += data["puntaje"]
+                evaluated_topics += 1
+        if evaluated_topics > 0:
+            school_scores[school] = total_score / evaluated_topics
+    
+    if school_scores:
+        df_school_scores = pd.DataFrame(school_scores.items(), columns=["Escuela", "Puntaje Promedio"])
+        st.bar_chart(df_school_scores, x="Escuela", y="Puntaje Promedio")
+        st.write("Este gráfico muestra la calificación promedio de los módulos evaluados por escuela. Es un indicador clave del rendimiento general de cada área de capacitación.")
+    else:
+        st.info("No hay suficientes datos para generar el gráfico de rendimiento por escuela.")
+
+    st.markdown("---")
+
+    # 4. Top 5 Temas Mejor Puntuados
+    st.subheader("4. Top 5 Temas Mejor Puntuados")
+    if tema_scores:
+        promedios_tema = {tema: sum(scores) / len(scores) for tema, scores in tema_scores.items()}
+        top_5_temas = sorted(promedios_tema.items(), key=lambda item: item[1], reverse=True)[:5]
+        df_top_5 = pd.DataFrame(top_5_temas, columns=["Tema", "Puntaje Promedio"])
+        st.table(df_top_5)
+    else:
+        st.info("Aún no hay módulos completados para mostrar el ranking.")
+
+    st.markdown("---")
+    
+    # 5. Distribución de Puntos por Usuario
+    st.subheader("5. Distribución de Puntos por Usuario")
+    if not df_analytics.empty:
+        df_analytics_points = df_analytics[["Usuario", "Puntos"]]
+        st.bar_chart(df_analytics_points, x="Usuario", y="Puntos")
+        st.write("Este gráfico muestra los puntos de gamificación de cada usuario, lo que permite visualizar a los usuarios más activos y comprometidos.")
+    else:
+        st.info("No hay datos de puntos de usuario para mostrar.")
