@@ -7,7 +7,6 @@ pypdf
 sentence-transformers
 google-generativeai
 langchain-google-genai
-pydub
 pandas
 Pillow
 huggingface-hub
