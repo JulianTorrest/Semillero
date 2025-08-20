@@ -1,6 +1,7 @@
 import streamlit as st
 import os
 import io
+from datetime import datetime, time
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.embeddings import HuggingFaceEmbeddings
@@ -304,6 +305,28 @@ def generate_interactive_quiz():
             check_and_award_badges(st.session_state.current_user, {"topic": "Quiz Interactivo", "evaluado": True, "puntaje": 5.0}, [{"score": 5}])
         else:
             st.error("Orden incorrecto. Por favor, intenta de nuevo.")
+            
+def load_and_process_students(file):
+    """Carga y procesa un archivo de alumnos (PDF o Excel)."""
+    try:
+        if file.type == "application/pdf":
+            elements = partition(file=file)
+            df = pd.DataFrame([e.text.split(",") for e in elements])
+        elif file.type == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
+            df = pd.read_excel(file)
+        else:
+            st.error("Formato de archivo no soportado. Por favor, sube un PDF o Excel.")
+            return None
+
+        # Estandarizar nombres de columnas a los campos requeridos
+        df.columns = [col.strip().replace(" ", "_").capitalize() for col in df.columns]
+        required_cols = ["Empresa", "Cedula", "Nombre", "Correo", "Cargo", "Direccion", "Area"]
+        df = df[required_cols]
+        return df
+
+    except Exception as e:
+        st.error(f"Error al procesar el archivo: {e}")
+        return None
 
 # --- Configuración y Título ---
 st.set_page_config(page_title="Mentor.IA - Finanzauto", layout="wide")
@@ -347,12 +370,14 @@ if "current_quiz" not in st.session_state:
     }
 if "current_user" not in st.session_state:
     st.session_state.current_user = "Julian Yamid Torres Torres"
+if "alumnos_cargados" not in st.session_state:
+    st.session_state.alumnos_cargados = []
 
 
 load_users()
 
 # --- Contenido Principal con Pestañas ---
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["👤 Perfil", "🎓 Escuelas", "📚 Evaluación", "👨‍💼 Gestionar Usuario", "🛠️ Modificar Escuela", "📊 Analíticas"])
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs(["👤 Perfil", "🎓 Escuelas", "📚 Evaluación", "👨‍💼 Gestionar Usuario", "🛠️ Modificar Escuela", "📊 Analíticas", "👩‍🏫 Asignar Alumnos", "📅 Agendamiento de Clases"])
 
 with tab1:
     # --- Perfil de Usuario ---
@@ -860,3 +885,156 @@ with tab6:
         st.write("Este gráfico muestra los puntos de gamificación de cada usuario, lo que permite visualizar a los usuarios más activos y comprometidos.")
     else:
         st.info("No hay datos de puntos de usuario para mostrar.")
+
+with tab7:
+    # --- Pestaña de Asignar Alumnos ---
+    st.header("👩‍🏫 Asignar Alumnos")
+    st.write("---")
+    st.markdown("#### **Bienvenido a esta sección: asigna usuarios, de forma individual o masiva, a un tema o escuela específica.**")
+
+    # Opciones de asignación
+    assignment_type = st.radio("Elige el tipo de asignación:", ("Asignación Única", "Asignación Masiva"))
+
+    if assignment_type == "Asignación Única":
+        with st.form("asignacion_unica_form"):
+            st.subheader("Asignación Individual")
+            empresa = st.text_input("Empresa:")
+            cedula = st.text_input("Cédula:")
+            nombre = st.text_input("Nombre:")
+            correo = st.text_input("Correo:")
+            cargo = st.text_input("Cargo:")
+            direccion = st.text_input("Dirección:")
+            area = st.text_input("Área:")
+            
+            submit_unica = st.form_submit_button("Asignar Alumno")
+            
+            if submit_unica:
+                if nombre and cedula and correo:
+                    if nombre not in st.session_state.users:
+                        new_user_data = {
+                            "empresa": empresa,
+                            "cedula": cedula,
+                            "nombre": nombre,
+                            "correo": correo,
+                            "cargo": cargo,
+                            "direccion": direccion,
+                            "area": area,
+                            "puntos": 0,
+                            "nivel": 0,
+                            "temas_completados": {},
+                            "badges": []
+                        }
+                        st.session_state.users[nombre] = new_user_data
+                        st.success(f"✅ Alumno '{nombre}' asignado exitosamente.")
+                    else:
+                        st.warning(f"El alumno '{nombre}' ya existe. No se puede asignar de nuevo.")
+                else:
+                    st.error("Por favor, completa los campos obligatorios: Nombre, Cédula y Correo.")
+
+    elif assignment_type == "Asignación Masiva":
+        st.subheader("Asignación Masiva")
+        st.write("Carga un archivo PDF o Excel con los campos: Empresa, Cédula, Nombre, Correo, Cargo, Dirección, Área.")
+        
+        uploaded_file_mass = st.file_uploader("Selecciona el archivo para asignación masiva", type=["pdf", "xlsx"])
+        
+        if uploaded_file_mass:
+            st.write("---")
+            st.subheader("Vista Previa de la Carga")
+            df_preview = load_and_process_students(uploaded_file_mass)
+            
+            if df_preview is not None:
+                st.dataframe(df_preview, use_container_width=True)
+                
+                if st.button("Aceptar cambios"):
+                    for index, row in df_preview.iterrows():
+                        nombre_alumno = row["Nombre"]
+                        if nombre_alumno not in st.session_state.users:
+                            new_user_data = {
+                                "empresa": row["Empresa"],
+                                "cedula": row["Cedula"],
+                                "nombre": nombre_alumno,
+                                "correo": row["Correo"],
+                                "cargo": row["Cargo"],
+                                "direccion": row["Direccion"],
+                                "area": row["Area"],
+                                "puntos": 0,
+                                "nivel": 0,
+                                "temas_completados": {},
+                                "badges": []
+                            }
+                            st.session_state.users[nombre_alumno] = new_user_data
+                            st.session_state.alumnos_cargados.append(nombre_alumno)
+                    st.success(f"✅ Se han cargado {len(df_preview)} alumnos exitosamente.")
+                    st.rerun()
+
+with tab8:
+    # --- Pestaña de Agendamiento de Clases ---
+    st.header("📅 Agendamiento de Clases")
+    st.write("---")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("Calendario Académico")
+        
+        clase_date = st.date_input("Selecciona la fecha de la clase", datetime.now())
+        clase_time = st.time_input("Selecciona la hora de la clase", time(10, 0))
+        
+        st.write(f"**Fecha y Hora Seleccionada:** {clase_date.strftime('%d/%m/%Y')} a las {clase_time.strftime('%H:%M')}")
+        
+    with col2:
+        st.subheader("Información de la Clase")
+        
+        clase_asunto = st.text_input("Asunto:")
+        clase_cuerpo = st.text_area("Cuerpo del mensaje:")
+        
+    st.markdown("---")
+    st.subheader("Seleccionar Alumnos")
+    
+    selection_mode = st.radio("Modo de selección:", ("Selección Individual", "Selección Masiva"))
+    
+    selected_alumnos = []
+    
+    if selection_mode == "Selección Individual":
+        alumnos_list = list(st.session_state.users.keys())
+        selected_alumnos_unique = st.multiselect("Selecciona los alumnos de la lista:", alumnos_list)
+        selected_alumnos = selected_alumnos_unique
+        
+    elif selection_mode == "Selección Masiva":
+        st.warning("Para seleccionar alumnos de forma masiva, debes usar la pestaña 'Asignar Alumnos' para cargarlos previamente.")
+        
+        alumnos_options = ["Todos los alumnos"] + list(st.session_state.users.keys())
+        select_mass_option = st.selectbox("Elige un grupo de alumnos:", alumnos_options)
+
+        if select_mass_option == "Todos los alumnos":
+            selected_alumnos = list(st.session_state.users.keys())
+            st.info(f"Se ha seleccionado a **todos** los alumnos ({len(selected_alumnos)}).")
+        else:
+            selected_alumnos = [select_mass_option]
+            st.info(f"Se ha seleccionado al alumno **{select_mass_option}**.")
+
+    st.markdown("---")
+    
+    col_buttons1, col_buttons2 = st.columns([1, 4])
+    
+    with col_buttons1:
+        if st.button("Enviar Citación"):
+            if not clase_asunto or not clase_cuerpo:
+                st.error("Por favor, completa el Asunto y el Cuerpo del mensaje.")
+            elif not selected_alumnos:
+                st.error("Por favor, selecciona al menos un alumno.")
+            else:
+                with st.spinner("Enviando citaciones..."):
+                    # Simulación de envío
+                    st.session_state["citacion_enviada"] = True
+                    st.success("✅ **¡Citación Enviada!**")
+                    st.info(f"Citación enviada a {len(selected_alumnos)} alumno(s).")
+                    
+                    st.write("---")
+                    st.subheader("Resumen de la Citación")
+                    st.write(f"**Fecha:** {clase_date.strftime('%d/%m/%Y')}")
+                    st.write(f"**Hora:** {clase_time.strftime('%H:%M')}")
+                    st.write(f"**Asunto:** {clase_asunto}")
+                    st.write(f"**Cuerpo del mensaje:**")
+                    st.write(clase_cuerpo)
+                    st.write(f"**Alumnos Citados:** {', '.join(selected_alumnos)}")
