@@ -456,7 +456,6 @@ with tab3:
                             st.info(f"Procesando archivo de audio: {uploaded_file.name}")
                             audio_bytes = uploaded_file.read()
                             audio = AudioSegment.from_file(io.BytesIO(audio_bytes), format="mp3")
-                            audio.export("temp_audio.mp3", format="mp3")
 
                             llm_audio = ChatGoogleGenerativeAI(model="gemini-2.0-flash", google_api_key=st.secrets["GOOGLE_API_KEY"])
                             prompt_audio = f"""
