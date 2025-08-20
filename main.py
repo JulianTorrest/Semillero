@@ -11,8 +11,12 @@ import google.generativeai as genai
 import random
 import pandas as pd
 from pydub import AudioSegment
-from pydub.utils import mediainfo
 from PIL import Image
+try:
+    from pydub.utils import mediainfo
+except ImportError:
+    mediainfo = None
+    print("Advertencia: No se pudo importar mediainfo. El procesamiento de audio puede fallar si no se encuentra ffmpeg.")
 
 # --- Funciones Auxiliares ---
 
