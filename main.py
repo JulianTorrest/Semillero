@@ -177,42 +177,75 @@ def load_users():
         st.session_state.users = {
             "Julian Yamid Torres Torres": {
                 "temas_completados": {
-                    "Tipos de clientes y manejo": 4.5, 
-                    "Negociación de pagos": 4.2
+                    "Escuela DataPro": {
+                        "Tipos de clientes y manejo": 4.5,
+                        "Negociación de pagos": 4.2
+                    }
                 },
                 "badges": ["Master en Tipos de clientes y manejo", "Primer Paso 👣"]
             },
             "Sofia Gomez": {
                 "temas_completados": {
-                    "Manejo de PQRs": 4.8
+                    "Escuela de Cobradores": {
+                        "Manejo de PQRs": 4.8
+                    }
                 },
                 "badges": ["Master en Manejo de PQRs"]
             },
             "Carlos Ramirez": {
                 "temas_completados": {
-                    "Procesos de cartera": 3.9
+                    "Escuela de Verificadores": {
+                        "Procesos de cartera": 3.9
+                    }
                 },
                 "badges": []
             }
         }
-    # Asegura que los temas de los usuarios existan en st.session_state.temas
+    
+    # Nueva estructura para escuelas y temas
+    if "escuelas" not in st.session_state:
+        st.session_state.escuelas = {
+            "Escuela DataPro": {
+                "Tipos de clientes y manejo": {"evaluado": True, "puntaje": 4.5},
+                "Negociación de pagos": {"evaluado": True, "puntaje": 4.2},
+                "Recuperación de cartera": {"evaluado": False, "puntaje": 0},
+            },
+            "Escuela de Cobradores": {
+                "Técnicas de persuasión": {"evaluado": False, "puntaje": 0},
+                "Manejo de objeciones": {"evaluado": False, "puntaje": 0},
+                "Cierre de acuerdos de pago": {"evaluado": False, "puntaje": 0},
+            },
+            "Escuela de Verificadores": {
+                "Validación de datos": {"evaluado": False, "puntaje": 0},
+                "Normatividad vigente": {"evaluado": False, "puntaje": 0},
+            },
+            "Escuela de Atención al Cliente": {
+                "Protocolo de llamadas": {"evaluado": False, "puntaje": 0},
+                "Solución de conflictos": {"evaluado": False, "puntaje": 0},
+            }
+        }
+    
+    # Sincronizar temas completados con la nueva estructura
     for user, data in st.session_state.users.items():
-        for tema, puntaje in data["temas_completados"].items():
-            if tema not in st.session_state.temas:
-                st.session_state.temas[tema] = {"evaluado": True, "puntaje": puntaje, "contenido_cargado": False}
+        for escuela, temas in data["temas_completados"].items():
+            for tema, puntaje in temas.items():
+                if escuela in st.session_state.escuelas and tema in st.session_state.escuelas[escuela]:
+                    st.session_state.escuelas[escuela][tema]["evaluado"] = True
+                    st.session_state.escuelas[escuela][tema]["puntaje"] = puntaje
 
 # --- Configuración y Título ---
 st.set_page_config(page_title="Mentor.IA - Finanzauto", layout="wide")
 st.title("Mentor.IA 🤖")
 
 # --- Inicialización del Estado de la Sesión ---
-if "temas" not in st.session_state:
-    st.session_state.temas = {}
+if "escuelas" not in st.session_state:
+    st.session_state.escuelas = {}
 if "vector_store" not in st.session_state:
     st.session_state.vector_store = None
 if "current_quiz" not in st.session_state:
     st.session_state.current_quiz = {
         "active": False,
+        "school": "",
         "topic": "",
         "questions": [],
         "correct_answers": [],
@@ -224,14 +257,16 @@ if "current_quiz" not in st.session_state:
 
 load_users()
 
-def get_topics_from_files(uploaded_files):
-    """Extrae los nombres de los archivos como temas de capacitación."""
+def get_topics_from_files(uploaded_files, school_name="Escuela DataPro"):
+    """Extrae los nombres de los archivos como temas de capacitación y los asigna a una escuela."""
     for file in uploaded_files:
         topic_name = os.path.splitext(file.name)[0].replace("_", " ").title()
-        if topic_name not in st.session_state.temas:
-            st.session_state.temas[topic_name] = {"evaluado": False, "puntaje": 0, "contenido_cargado": True}
-        # Asegurarse de que el tema cargado sea marcado como tal
-        st.session_state.temas[topic_name]["contenido_cargado"] = True
+        if school_name not in st.session_state.escuelas:
+            st.session_state.escuelas[school_name] = {}
+        if topic_name not in st.session_state.escuelas[school_name]:
+            st.session_state.escuelas[school_name][topic_name] = {"evaluado": False, "puntaje": 0, "contenido_cargado": True}
+        else:
+            st.session_state.escuelas[school_name][topic_name]["contenido_cargado"] = True
 
 
 # --- Contenido Principal con Pestañas ---
@@ -243,63 +278,71 @@ with tab1:
     st.write("---")
     current_user = "Julian Yamid Torres Torres"
     st.write(f"**Nombre:** {current_user}")
+    
+    # Agregando más servicios al perfil
+    st.subheader("Estado de Nivel")
+    total_temas_completados = sum(len(escuelas) for escuelas in st.session_state.users[current_user]["temas_completados"].values())
+    st.metric(label="Módulos Completados", value=f"{total_temas_completados}")
+
+    # Calculando el puntaje promedio general
+    total_puntaje = 0
+    total_temas = 0
+    for escuela, temas in st.session_state.users[current_user]["temas_completados"].items():
+        total_puntaje += sum(temas.values())
+        total_temas += len(temas)
+    
+    promedio_general = total_puntaje / total_temas if total_temas > 0 else 0
+    st.metric(label="Puntaje Promedio General", value=f"{promedio_general:.1f}/5")
+
+    st.write("---")
     st.subheader("Mis Insignias")
     if st.session_state.users[current_user]["badges"]:
         for badge in st.session_state.users[current_user]["badges"]:
             st.write(f"🏅 {badge}")
     else:
-        st.write("Aún no tienes insignias. ¡Completa temas para ganar la primera!")
-    st.write("---")
+        st.write("Aún no tienes insignias. ¡Completa módulos para ganar la primera!")
     
+    st.write("---")
     st.header("🏆 Tabla de Liderazgo")
     leaderboard_data = []
     for user, data in st.session_state.users.items():
-        if data["temas_completados"]:
-            avg_score = sum(data["temas_completados"].values()) / len(data["temas_completados"])
-            leaderboard_data.append({
-                "Usuario": user,
-                "Temas Completados": len(data["temas_completados"]),
-                "Puntaje Promedio": f"{avg_score:.1f}"
-            })
+        total_temas_completados = sum(len(escuelas) for escuelas in data["temas_completados"].values())
+        total_puntaje = sum(sum(temas.values()) for temas in data["temas_completados"].values())
+        promedio_final = total_puntaje / total_temas_completados if total_temas_completados > 0 else 0
+        leaderboard_data.append({
+            "Usuario": user,
+            "Módulos Completados": total_temas_completados,
+            "Puntaje Promedio": f"{promedio_final:.1f}"
+        })
     
-    leaderboard_data.sort(key=lambda x: (x["Temas Completados"], float(x["Puntaje Promedio"])), reverse=True)
+    leaderboard_data.sort(key=lambda x: (x["Módulos Completados"], float(x["Puntaje Promedio"])), reverse=True)
     st.table(leaderboard_data)
 
 with tab2:
     # --- Módulo de Escuelas ---
-    st.header("🎓 Escuela: Cartera")
-    st.write("---")
-    
-    # Reporte de Avance
-    st.subheader("Reporte de Avance")
-    temas_evaluados = [t for t in st.session_state.temas.values() if t["evaluado"]]
-    total_temas = len(st.session_state.temas)
-    
-    if temas_evaluados:
-        promedio_finalizados = sum(t["puntaje"] for t in temas_evaluados) / len(temas_evaluados)
-    else:
-        promedio_finalizados = 0
-    st.metric(label="Calificación Promedio", value=f"{promedio_finalizados:.1f}/5")
-
-    temas_finalizados = len(temas_evaluados)
-    porcentaje_finalizado = (temas_finalizados / total_temas) * 100 if total_temas > 0 else 0
-    st.metric(label="Temas Finalizados", value=f"{temas_finalizados}/{total_temas}")
-    st.progress(porcentaje_finalizado / 100, text=f"{porcentaje_finalizado:.0f}% completado")
-    
+    st.header("🎓 Escuelas de Aprendizaje")
     st.write("---")
 
-    # Temas con calificación
-    st.subheader("Temas por Escuela")
-    for tema, data in st.session_state.temas.items():
-        if data["evaluado"]:
-            st.write(f"- {tema}: **{data['puntaje']:.1f}/5**")
-        else:
-            st.write(f"- {tema}: Pendiente")
+    for escuela_nombre, temas in st.session_state.escuelas.items():
+        st.subheader(f"✅ {escuela_nombre}")
+        total_temas_escuela = len(temas)
+        temas_completados_escuela = [t for t in temas.values() if t["evaluado"]]
+        num_temas_completados = len(temas_completados_escuela)
+        
+        st.progress(num_temas_completados / total_temas_escuela, text=f"{num_temas_completados}/{total_temas_escuela} Módulos completados")
+        
+        for tema, data in temas.items():
+            if data["evaluado"]:
+                st.write(f"- **{tema}**: **{data['puntaje']:.1f}/5**")
+            else:
+                st.write(f"- **{tema}**: Pendiente")
+        st.write("---")
     
 with tab3:
-    # --- Módulo de Carga de Documentos ---
+    # --- Contenido de la pestaña de Evaluación ---
     st.header("1. Carga de Documentos")
     st.write("Sube uno o varios archivos PDF para crear la base de conocimiento.")
+    
     uploaded_files = st.file_uploader(
         "Selecciona los archivos PDF", type="pdf", accept_multiple_files=True
     )
@@ -308,7 +351,7 @@ with tab3:
         if st.button("Procesar Archivos"):
             with st.spinner("Procesando documentos..."):
                 try:
-                    get_topics_from_files(uploaded_files)
+                    get_topics_from_files(uploaded_files, "Escuela DataPro")
                     temp_dir = "temp_pdfs"
                     if not os.path.exists(temp_dir):
                         os.makedirs(temp_dir)
@@ -343,7 +386,6 @@ with tab3:
                             os.remove(os.path.join(temp_dir, path))
                         os.rmdir(temp_dir)
 
-    # --- Módulo de Preguntas y Respuestas (Chat con Mentor.IA) ---
     st.header("2. Preguntas y Respuestas")
     if st.session_state.vector_store is None:
         st.warning("Por favor, procesa los documentos primero para poder usar Mentor.IA.")
@@ -361,18 +403,21 @@ with tab3:
                     except Exception as e:
                         st.error(f"❌ Ocurrió un error al obtener la respuesta: {e}")
 
-    # --- Módulo de Evaluación (Temas y Quizz) ---
     st.header("3. Escuela de Aprendizaje: Evaluación")
     if st.session_state.vector_store is None:
         st.warning("Para iniciar una evaluación, por favor carga y procesa los documentos primero.")
     else:
-        topic_options = list(st.session_state.temas.keys())
+        school_options = list(st.session_state.escuelas.keys())
+        selected_school = st.selectbox("Selecciona una escuela para evaluar:", options=school_options)
+
+        topic_options = list(st.session_state.escuelas[selected_school].keys())
         selected_topic = st.selectbox("Selecciona un tema para evaluar:", options=topic_options)
 
         if not st.session_state.current_quiz["active"]:
             if st.button("Iniciar Evaluación"):
                 with st.spinner(f"Generando 4 preguntas sobre '{selected_topic}'..."):
                     st.session_state.current_quiz["active"] = True
+                    st.session_state.current_quiz["school"] = selected_school
                     st.session_state.current_quiz["topic"] = selected_topic
                     questions, correct_answers = generate_questions_and_answers(st.session_state.vector_store, num_questions=4)
                     
@@ -421,10 +466,12 @@ with tab3:
                     st.error("Lo siento. 😔 No has aprobado la evaluación.")
                     st.warning(f"Ruta de Aprendizaje Personalizada: Te recomendamos repasar el tema '{quiz_data['topic']}' y sus documentos de apoyo para mejorar tus conocimientos.")
 
-                st.session_state.temas[quiz_data["topic"]]["evaluado"] = True
-                st.session_state.temas[quiz_data["topic"]]["puntaje"] = promedio_final
+                st.session_state.escuelas[quiz_data["school"]][quiz_data["topic"]]["evaluado"] = True
+                st.session_state.escuelas[quiz_data["school"]][quiz_data["topic"]]["puntaje"] = promedio_final
                 
-                st.session_state.users[current_user]["temas_completados"][quiz_data["topic"]] = promedio_final
+                if quiz_data["school"] not in st.session_state.users[current_user]["temas_completados"]:
+                    st.session_state.users[current_user]["temas_completados"][quiz_data["school"]] = {}
+                st.session_state.users[current_user]["temas_completados"][quiz_data["school"]][quiz_data["topic"]] = promedio_final
                 
                 new_badges = check_and_award_badges(current_user, {"topic": quiz_data["topic"], "evaluado": True, "puntaje": promedio_final}, quiz_data["scores"])
                 if new_badges:
@@ -445,25 +492,27 @@ with tab3:
                     st.session_state.current_quiz["active"] = False
                     st.rerun()
 
-    # --- Módulo de Ruta de Aprendizaje Personalizada ---
     st.header("4. Ruta de Aprendizaje Personalizada")
 
     if st.session_state.vector_store is None:
         st.warning("Para ver las rutas de aprendizaje, por favor procesa los documentos primero.")
     else:
-        topic_options_path = ["Selecciona un tema"] + list(st.session_state.temas.keys())
-        selected_path_topic = st.selectbox("Selecciona un tema para ver su ruta de aprendizaje:", options=topic_options_path)
+        school_options_path = ["Selecciona una escuela"] + list(st.session_state.escuelas.keys())
+        selected_school_path = st.selectbox("Selecciona una escuela para la ruta:", options=school_options_path)
 
-        if selected_path_topic != "Selecciona un tema":
-            st.write("---")
-            st.subheader(f"Ruta de Aprendizaje: {selected_path_topic}")
+        if selected_school_path != "Selecciona una escuela":
+            topic_options_path = ["Selecciona un tema"] + list(st.session_state.escuelas[selected_school_path].keys())
+            selected_path_topic = st.selectbox("Selecciona un tema para ver su ruta de aprendizaje:", options=topic_options_path)
             
-            with st.spinner("Generando contenido de la ruta de aprendizaje..."):
-                rag_chain = get_qa_chain(st.session_state.vector_store)
-                content = generate_learning_path_content(rag_chain, selected_path_topic)
-            st.write(content)
+            if selected_path_topic != "Selecciona un tema":
+                st.write("---")
+                st.subheader(f"Ruta de Aprendizaje: {selected_path_topic}")
+                
+                with st.spinner("Generando contenido de la ruta de aprendizaje..."):
+                    rag_chain = get_qa_chain(st.session_state.vector_store)
+                    content = generate_learning_path_content(rag_chain, selected_path_topic)
+                st.write(content)
 
-    # --- Módulo de Simulación de Casos ---
     st.header("5. Simulación de Casos")
     if st.session_state.vector_store is None:
         st.warning("Para iniciar una simulación, por favor carga y procesa los documentos primero.")
