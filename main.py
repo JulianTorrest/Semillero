@@ -166,8 +166,6 @@ else:
                 except Exception as e:
                     st.error(f"❌ Ocurrió un error al obtener la respuesta: {e}")
 
----
-
 ### **Módulo de Evaluación (Temas y Quizz)**
 st.header("3. Escuela de Aprendizaje: Evaluación")
 
