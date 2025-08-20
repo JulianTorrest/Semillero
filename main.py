@@ -8,28 +8,62 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.chains import RetrievalQA
 import google.generativeai as genai
 
+# --- Funciones Auxiliares ---
+def get_qa_chain(vector_store, model_name="gemini-2.0-flash"):
+    """Crea y retorna la cadena RAG para preguntas y respuestas."""
+    genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+    llm = ChatGoogleGenerativeAI(model=model_name)
+    rag_chain = RetrievalQA.from_chain_type(
+        llm=llm,
+        chain_type="stuff",
+        retriever=vector_store.as_retriever()
+    )
+    return rag_chain
+
+def generate_question(rag_chain):
+    """Genera una pregunta aleatoria basada en el contenido del vector store."""
+    prompt = "Genera una pregunta de una sola oración que se pueda responder directamente con el contenido de los documentos. La pregunta debe ser clara y concisa."
+    question = rag_chain.invoke(prompt)
+    return question["result"]
+
+def grade_answer(rag_chain, user_answer, correct_answer):
+    """Evalúa la respuesta del usuario usando el LLM y da un puntaje."""
+    prompt = f"""
+    Evalúa la siguiente respuesta del usuario. Compara su respuesta con la respuesta correcta basada en los documentos.
+    Respuesta del usuario: "{user_answer}"
+    Respuesta correcta (basada en el documento): "{correct_answer}"
+
+    Asigna una calificación del 0 al 100 y proporciona un feedback conciso de una oración.
+    Formato de la respuesta:
+    Calificación: [0-100]
+    Feedback: [Tu feedback aquí]
+    """
+    evaluation = rag_chain.invoke(prompt)
+    return evaluation["result"]
+
 # --- Configuración y Título ---
 st.set_page_config(page_title="Mentor.IA - Finanzauto", layout="wide")
 st.title("Mentor.IA 🤖")
 
-# --- Módulo de Funciones para Temas ---
-# Esta sección simula los temas y las evaluaciones.
-# En una aplicación real, esta información vendría de una base de datos.
+# --- Módulo de Funciones para Temas y Estado ---
 if "temas" not in st.session_state:
-    st.session_state.temas = {
-        "Procesos de cartera": {"evaluado": False, "puntaje": 0, "contenido_cargado": False},
-        "Tipos de clientes y manejo": {"evaluado": True, "puntaje": 95, "contenido_cargado": True},
-        "Manejo de PQRs": {"evaluado": False, "puntaje": 0, "contenido_cargado": False},
-        "Negociación de pagos": {"evaluado": True, "puntaje": 88, "contenido_cargado": True}
+    st.session_state.temas = {}
+if "vector_store" not in st.session_state:
+    st.session_state.vector_store = None
+if "quiz_state" not in st.session_state:
+    st.session_state.quiz_state = {
+        "active": False,
+        "question": "",
+        "correct_answer": "",
+        "topic": ""
     }
 
 def get_topics_from_files(uploaded_files):
     """Extrae los nombres de los archivos como temas de capacitación."""
-    temas_nuevos = {}
     for file in uploaded_files:
         topic_name = os.path.splitext(file.name)[0].replace("_", " ").title()
-        temas_nuevos[topic_name] = {"evaluado": False, "puntaje": 0, "contenido_cargado": True}
-    return temas_nuevos
+        if topic_name not in st.session_state.temas:
+            st.session_state.temas[topic_name] = {"evaluado": False, "puntaje": 0, "contenido_cargado": True}
 
 # --- Barra Lateral (Menú y Perfil de Usuario) ---
 with st.sidebar:
@@ -70,7 +104,6 @@ st.write("")
 # --- Módulo de Carga de Documentos ---
 st.header("1. Carga de Documentos")
 st.write("Sube uno o varios archivos PDF para crear la base de conocimiento.")
-
 uploaded_files = st.file_uploader(
     "Selecciona los archivos PDF", type="pdf", accept_multiple_files=True
 )
@@ -79,11 +112,7 @@ if uploaded_files:
     if st.button("Procesar Archivos"):
         with st.spinner("Procesando documentos..."):
             try:
-                # Actualizar temas con los archivos subidos
-                nuevos_temas = get_topics_from_files(uploaded_files)
-                st.session_state.temas.update(nuevos_temas)
-
-                # Crear una carpeta temporal para los PDFs
+                get_topics_from_files(uploaded_files)
                 temp_dir = "temp_pdfs"
                 if not os.path.exists(temp_dir):
                     os.makedirs(temp_dir)
@@ -107,7 +136,6 @@ if uploaded_files:
                 embeddings = HuggingFaceEmbeddings(model_name=model_name)
                 
                 vector_store = FAISS.from_documents(splits, embeddings)
-                
                 st.session_state.vector_store = vector_store
                 st.success("✅ Documentos procesados y base de conocimiento creada. ¡Ahora puedes hacer preguntas!")
                 
@@ -119,34 +147,93 @@ if uploaded_files:
                         os.remove(os.path.join(temp_dir, path))
                     os.rmdir(temp_dir)
 
-# --- Módulo de Preguntas y Respuestas (Chat con Mentor.IA) ---
+---
+
+### **Módulo de Preguntas y Respuestas (Chat con Mentor.IA)**
 st.header("2. Preguntas y Respuestas")
 
-if "vector_store" not in st.session_state:
-    st.warning("Por favor, procesa los documentos primero para poder hacer preguntas.")
+if st.session_state.vector_store is None:
+    st.warning("Por favor, procesa los documentos primero para poder usar Mentor.IA.")
 else:
-    question = st.text_input("Haz tu pregunta sobre los documentos:")
-    
+    question = st.text_input("Haz tu pregunta a Mentor.IA:")
     if question:
         if st.button("Obtener Respuesta"):
             with st.spinner("Mentor.IA está generando la respuesta..."):
                 try:
-                    genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
-                    
-                    # Usar el modelo 'gemini-2.0-flash'
-                    llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash") 
-                    
-                    rag_chain = RetrievalQA.from_chain_type(
-                        llm=llm,
-                        chain_type="stuff",
-                        retriever=st.session_state.vector_store.as_retriever()
-                    )
-                    
+                    rag_chain = get_qa_chain(st.session_state.vector_store)
                     response = rag_chain.invoke(question)
-                    
                     st.write("---")
                     st.subheader("Respuesta de Mentor.IA:")
                     st.write(response["result"])
-                    
                 except Exception as e:
                     st.error(f"❌ Ocurrió un error al obtener la respuesta: {e}")
+
+---
+
+### **Módulo de Evaluación (Temas y Quizz)**
+st.header("3. Escuela de Aprendizaje: Evaluación")
+
+if st.session_state.vector_store is None:
+    st.warning("Para iniciar una evaluación, por favor carga y procesa los documentos primero.")
+else:
+    topic_options = list(st.session_state.temas.keys())
+    selected_topic = st.selectbox("Selecciona un tema para evaluar:", options=topic_options)
+
+    if st.button("Iniciar Evaluación"):
+        with st.spinner(f"Generando pregunta sobre '{selected_topic}'..."):
+            try:
+                # Generar una pregunta y la respuesta correcta
+                rag_chain = get_qa_chain(st.session_state.vector_store)
+                new_question = generate_question(rag_chain)
+                
+                # Para obtener la respuesta correcta, hacemos una segunda llamada
+                correct_answer_chain = RetrievalQA.from_chain_type(
+                    llm=ChatGoogleGenerativeAI(model="gemini-2.0-flash"),
+                    chain_type="stuff",
+                    retriever=st.session_state.vector_store.as_retriever()
+                )
+                correct_answer = correct_answer_chain.invoke(new_question)
+                
+                # Actualizar el estado del quiz
+                st.session_state.quiz_state["active"] = True
+                st.session_state.quiz_state["question"] = new_question
+                st.session_state.quiz_state["correct_answer"] = correct_answer["result"]
+                st.session_state.quiz_state["topic"] = selected_topic
+                st.rerun() 
+            except Exception as e:
+                st.error(f"❌ Ocurrió un error al generar la pregunta: {e}")
+
+    # Mostrar la pregunta y el campo de respuesta si el quiz está activo
+    if st.session_state.quiz_state["active"]:
+        st.subheader(f"Pregunta sobre el tema: **{st.session_state.quiz_state['topic']}**")
+        st.write(st.session_state.quiz_state["question"])
+        user_answer = st.text_area("Tu respuesta:")
+        
+        if st.button("Evaluar Respuesta"):
+            if not user_answer:
+                st.warning("Por favor, escribe tu respuesta antes de evaluar.")
+            else:
+                with st.spinner("Evaluando tu respuesta..."):
+                    try:
+                        rag_chain = get_qa_chain(st.session_state.vector_store)
+                        evaluation = grade_answer(rag_chain, user_answer, st.session_state.quiz_state["correct_answer"])
+                        st.subheader("Resultado de la Evaluación")
+                        st.write(evaluation)
+                        
+                        # Simular el guardado del puntaje para el tema
+                        if "Calificación:" in evaluation:
+                            score_str = evaluation.split("Calificación: ")[1].split("\n")[0].strip()
+                            try:
+                                score = int(score_str)
+                                st.session_state.temas[st.session_state.quiz_state["topic"]]["evaluado"] = True
+                                st.session_state.temas[st.session_state.quiz_state["topic"]]["puntaje"] = score
+                            except ValueError:
+                                st.warning("No se pudo extraer la calificación. Por favor, revisa el formato de la respuesta.")
+                        
+                        st.session_state.quiz_state["active"] = False
+                        st.session_state.quiz_state["question"] = ""
+                        st.session_state.quiz_state["correct_answer"] = ""
+                        st.session_state.quiz_state["topic"] = ""
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ Ocurrió un error al evaluar la respuesta: {e}")
