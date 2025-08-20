@@ -284,7 +284,9 @@ with tab1:
     
     # Agregando más servicios al perfil
     st.subheader("Estado de Nivel")
-    total_temas_completados = sum(len(escuelas) for escuelas in st.session_state.users[current_user]["temas_completados"].values())
+    
+    # Solución al error: Ahora sumamos la longitud de cada diccionario de temas
+    total_temas_completados = sum(len(temas) for temas in st.session_state.users[current_user]["temas_completados"].values())
     st.metric(label="Módulos Completados", value=f"{total_temas_completados}")
 
     # Calculando el puntaje promedio general
