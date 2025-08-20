@@ -483,7 +483,22 @@ st.header("5. Simulación de Casos")
 if st.session_state.vector_store is None:
     st.warning("Para iniciar una simulación, por favor carga y procesa los documentos primero.")
 else:
-    st.info("¡Bienvenido a la simulación! Describe cómo manejarías un escenario para que Mentor.IA evalúe tu respuesta.")
+    st.markdown(
+    """
+    <div style="background-color:#003366; padding: 20px; border-radius: 10px; color:white;">
+        <p style="text-align:center; font-size:18px;">
+            ¡Bienvenido a la simulación! En este espacio, pondrás a prueba tus habilidades de comunicación y resolución de problemas en escenarios reales de atención al cliente.
+        </p>
+        <p style="text-align:center; font-size:18px;">
+            Tu tarea es describir con detalle, como si estuvieras en una situación real, cómo manejarías la situación. Mentor.IA evaluará tu respuesta no solo por la precisión de la información, sino también por tu **tono**, **empatía** y **profesionalismo**.
+        </p>
+        <p style="text-align:center; font-size:18px;">
+            **¡Estás listo para demostrar tu potencial!**
+        </p>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
     
     scenario = st.text_input("Ingresa el escenario de servicio al cliente:")
     if scenario:
