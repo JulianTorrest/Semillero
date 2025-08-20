@@ -65,7 +65,8 @@ if uploaded_files:
                         os.remove(os.path.join(temp_dir, path))
                     os.rmdir(temp_dir)
 
-# ---
+---
+
 ### Módulo de Preguntas y Respuestas
 
 st.header("2. Preguntas y Respuestas")
@@ -82,8 +83,8 @@ else:
                     # Configurar la API de Gemini
                     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
                     
-                    # Inicializar el LLM de Gemini
-                    llm = ChatGoogleGenerativeAI(model="gemini-pro")
+                    # 💡 CAMBIO CLAVE: Usar el modelo 'gemini-2.0-flash'
+                    llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash") 
                     
                     # Crear la cadena RAG
                     rag_chain = RetrievalQA.from_chain_type(
