@@ -113,15 +113,21 @@ with st.sidebar:
     st.write("---")
     
     st.subheader("Reporte de Avance")
+    temas_evaluados = [t for t in st.session_state.temas.values() if t["evaluado"]]
     total_temas = len(st.session_state.temas)
-    temas_finalizados = sum(1 for tema in st.session_state.temas.values() if tema["evaluado"])
+    
+    # Nuevo cálculo de la calificación promedio para toda la escuela
+    if temas_evaluados:
+        promedio_finalizados = sum(t["puntaje"] for t in temas_evaluados) / len(temas_evaluados)
+    else:
+        promedio_finalizados = 0
+
+    st.metric(label="Calificación Promedio", value=f"{promedio_finalizados:.1f}/5")
+
+    temas_finalizados = len(temas_evaluados)
     porcentaje_finalizado = (temas_finalizados / total_temas) * 100 if total_temas > 0 else 0
     st.metric(label="Temas Finalizados", value=f"{temas_finalizados}/{total_temas}")
     st.progress(porcentaje_finalizado / 100, text=f"{porcentaje_finalizado:.0f}% completado")
-    
-    if temas_finalizados > 0:
-        promedio_finalizados = sum(t["puntaje"] for t in st.session_state.temas.values() if t["evaluado"]) / temas_finalizados
-        st.metric(label="Calificación Promedio", value=f"{promedio_finalizados:.1f}/5")
 
     st.write("---")
     st.subheader("Temas Asignados")
@@ -197,7 +203,7 @@ if uploaded_files:
                         os.remove(os.path.join(temp_dir, path))
                     os.rmdir(temp_dir)
 
-### **Módulo de Preguntas y Respuestas (Chat con Mentor.IA)**
+# --- Módulo de Preguntas y Respuestas (Chat con Mentor.IA) ---
 st.header("2. Preguntas y Respuestas")
 
 if st.session_state.vector_store is None:
@@ -216,7 +222,7 @@ else:
                 except Exception as e:
                     st.error(f"❌ Ocurrió un error al obtener la respuesta: {e}")
 
-### **Módulo de Evaluación (Temas y Quizz)**
+# --- Módulo de Evaluación (Temas y Quizz) ---
 st.header("3. Escuela de Aprendizaje: Evaluación")
 
 if st.session_state.vector_store is None:
