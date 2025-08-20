@@ -7,6 +7,7 @@ from langchain_community.vectorstores import FAISS
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.chains import RetrievalQA
 import google.generativeai as genai
+import random
 
 # --- Funciones Auxiliares ---
 def get_qa_chain(vector_store, model_name="gemini-2.0-flash"):
@@ -20,42 +21,78 @@ def get_qa_chain(vector_store, model_name="gemini-2.0-flash"):
     )
     return rag_chain
 
-def generate_question(rag_chain):
-    """Genera una pregunta aleatoria basada en el contenido del vector store."""
-    prompt = "Genera una pregunta de una sola oración que se pueda responder directamente con el contenido de los documentos. La pregunta debe ser clara y concisa."
-    question = rag_chain.invoke(prompt)
-    return question["result"]
+def generate_questions(rag_chain, num_questions=10):
+    """Genera una lista de preguntas aleatorias basadas en el contenido."""
+    questions = []
+    for _ in range(num_questions):
+        prompt = "Genera una pregunta de una sola oración que se pueda responder directamente con el contenido de los documentos. La pregunta debe ser clara y concisa."
+        try:
+            question = rag_chain.invoke(prompt)
+            questions.append(question["result"])
+        except Exception as e:
+            st.error(f"Error generando la pregunta {_ + 1}: {e}")
+            return []
+    return questions
 
-def grade_answer(rag_chain, user_answer, correct_answer):
-    """Evalúa la respuesta del usuario usando el LLM y da un puntaje."""
+def grade_answer(rag_chain, user_answer, question):
+    """Evalúa la respuesta del usuario y asigna un puntaje de 0 a 5."""
     prompt = f"""
-    Evalúa la siguiente respuesta del usuario. Compara su respuesta con la respuesta correcta basada en los documentos.
-    Respuesta del usuario: "{user_answer}"
-    Respuesta correcta (basada en el documento): "{correct_answer}"
+    Eres un evaluador experto. Tu tarea es calificar las respuestas de los usuarios a una pregunta basada en documentos de capacitación.
 
-    Asigna una calificación del 0 al 100 y proporciona un feedback conciso de una oración.
+    Pregunta: "{question}"
+    Respuesta del usuario: "{user_answer}"
+    
+    Da una calificación del 0 al 5, donde:
+    5: La respuesta es excelente, completa y precisa.
+    4: La respuesta es muy buena, con pequeños detalles faltantes.
+    3: La respuesta es correcta, pero básica o con información incompleta.
+    2: La respuesta es parcialmente correcta, pero contiene errores significativos.
+    1: La respuesta es incorrecta.
+    0: La respuesta no tiene relación con la pregunta.
+
+    Además de la calificación, proporciona un feedback conciso de una oración. No incluyas la respuesta correcta en el feedback, solo guía al usuario a mejorar.
+    
     Formato de la respuesta:
-    Calificación: [0-100]
-    Feedback: [Tu feedback aquí]
+    Calificación: [0-5]
+    Feedback: [Tu feedback conciso aquí]
     """
-    evaluation = rag_chain.invoke(prompt)
-    return evaluation["result"]
+    try:
+        evaluation = rag_chain.invoke(prompt)
+        # Limpiar la respuesta para extraer la calificación
+        score = 0
+        feedback = "No se pudo obtener el feedback."
+        lines = evaluation["result"].split('\n')
+        for line in lines:
+            if "Calificación:" in line:
+                try:
+                    score = int(line.split(":")[1].strip())
+                except (ValueError, IndexError):
+                    score = 0
+            if "Feedback:" in line:
+                feedback = line.split(":", 1)[1].strip()
+        return score, feedback
+    except Exception as e:
+        st.error(f"Error al evaluar la respuesta: {e}")
+        return 0, "Error en la evaluación del sistema."
 
 # --- Configuración y Título ---
 st.set_page_config(page_title="Mentor.IA - Finanzauto", layout="wide")
 st.title("Mentor.IA 🤖")
 
-# --- Módulo de Funciones para Temas y Estado ---
+# --- Inicialización del Estado de la Sesión ---
 if "temas" not in st.session_state:
     st.session_state.temas = {}
 if "vector_store" not in st.session_state:
     st.session_state.vector_store = None
-if "quiz_state" not in st.session_state:
-    st.session_state.quiz_state = {
+if "current_quiz" not in st.session_state:
+    st.session_state.current_quiz = {
         "active": False,
-        "question": "",
-        "correct_answer": "",
-        "topic": ""
+        "topic": "",
+        "questions": [],
+        "answers": [],
+        "scores": [],
+        "current_q_index": 0,
+        "final_score": 0
     }
 
 def get_topics_from_files(uploaded_files):
@@ -74,6 +111,19 @@ with st.sidebar:
 
     st.header("📚 Escuela: Cartera")
     st.write("---")
+    
+    st.subheader("Reporte de Avance")
+    total_temas = len(st.session_state.temas)
+    temas_finalizados = sum(1 for tema in st.session_state.temas.values() if tema["evaluado"])
+    porcentaje_finalizado = (temas_finalizados / total_temas) * 100 if total_temas > 0 else 0
+    st.metric(label="Temas Finalizados", value=f"{temas_finalizados}/{total_temas}")
+    st.progress(porcentaje_finalizado / 100, text=f"{porcentaje_finalizado:.0f}% completado")
+    
+    if temas_finalizados > 0:
+        promedio_finalizados = sum(t["puntaje"] for t in st.session_state.temas.values() if t["evaluado"]) / temas_finalizados
+        st.metric(label="Calificación Promedio", value=f"{promedio_finalizados:.1f}/5")
+
+    st.write("---")
     st.subheader("Temas Asignados")
     for tema, data in st.session_state.temas.items():
         if not data["evaluado"]:
@@ -82,7 +132,7 @@ with st.sidebar:
     st.subheader("Temas Finalizados")
     for tema, data in st.session_state.temas.items():
         if data["evaluado"]:
-            st.write(f"- {tema}: **{data['puntaje']}/100**")
+            st.write(f"- {tema}: **{data['puntaje']}/5**")
     st.write("---")
 
 # --- Sección de Bienvenida y Propósito ---
@@ -175,61 +225,66 @@ else:
     topic_options = list(st.session_state.temas.keys())
     selected_topic = st.selectbox("Selecciona un tema para evaluar:", options=topic_options)
 
-    if st.button("Iniciar Evaluación"):
-        with st.spinner(f"Generando pregunta sobre '{selected_topic}'..."):
-            try:
-                # Generar una pregunta y la respuesta correcta
-                rag_chain = get_qa_chain(st.session_state.vector_store)
-                new_question = generate_question(rag_chain)
-                
-                # Para obtener la respuesta correcta, hacemos una segunda llamada
-                correct_answer_chain = RetrievalQA.from_chain_type(
-                    llm=ChatGoogleGenerativeAI(model="gemini-2.0-flash"),
-                    chain_type="stuff",
-                    retriever=st.session_state.vector_store.as_retriever()
-                )
-                correct_answer = correct_answer_chain.invoke(new_question)
-                
-                # Actualizar el estado del quiz
-                st.session_state.quiz_state["active"] = True
-                st.session_state.quiz_state["question"] = new_question
-                st.session_state.quiz_state["correct_answer"] = correct_answer["result"]
-                st.session_state.quiz_state["topic"] = selected_topic
-                st.rerun() 
-            except Exception as e:
-                st.error(f"❌ Ocurrió un error al generar la pregunta: {e}")
+    if not st.session_state.current_quiz["active"]:
+        if st.button("Iniciar Evaluación"):
+            with st.spinner(f"Generando 10 preguntas sobre '{selected_topic}'..."):
+                st.session_state.current_quiz["active"] = True
+                st.session_state.current_quiz["topic"] = selected_topic
+                st.session_state.current_quiz["questions"] = generate_questions(get_qa_chain(st.session_state.vector_store), num_questions=10)
+                st.session_state.current_quiz["answers"] = []
+                st.session_state.current_quiz["scores"] = []
+                st.session_state.current_quiz["current_q_index"] = 0
+                st.session_state.current_quiz["final_score"] = 0
+                st.rerun()
 
-    # Mostrar la pregunta y el campo de respuesta si el quiz está activo
-    if st.session_state.quiz_state["active"]:
-        st.subheader(f"Pregunta sobre el tema: **{st.session_state.quiz_state['topic']}**")
-        st.write(st.session_state.quiz_state["question"])
-        user_answer = st.text_area("Tu respuesta:")
-        
-        if st.button("Evaluar Respuesta"):
-            if not user_answer:
-                st.warning("Por favor, escribe tu respuesta antes de evaluar.")
+    if st.session_state.current_quiz["active"]:
+        quiz_data = st.session_state.current_quiz
+        current_q_index = quiz_data["current_q_index"]
+
+        if current_q_index < len(quiz_data["questions"]):
+            st.subheader(f"Pregunta {current_q_index + 1}/10 sobre el tema: **{quiz_data['topic']}**")
+            st.write(quiz_data["questions"][current_q_index])
+            user_answer = st.text_area("Tu respuesta:")
+            
+            if st.button("Evaluar y Siguiente"):
+                if not user_answer:
+                    st.warning("Por favor, escribe tu respuesta antes de continuar.")
+                else:
+                    score, feedback = grade_answer(get_qa_chain(st.session_state.vector_store), user_answer, quiz_data["questions"][current_q_index])
+                    quiz_data["answers"].append(user_answer)
+                    quiz_data["scores"].append({"score": score, "feedback": feedback})
+                    quiz_data["current_q_index"] += 1
+                    
+                    st.success(f"Calificación de la pregunta: {score}/5")
+                    st.info(f"Feedback: {feedback}")
+                    st.rerun()
+        else:
+            # Finalizar el quiz y mostrar resultados
+            final_score = sum(q["score"] for q in quiz_data["scores"])
+            promedio_final = final_score / len(quiz_data["scores"])
+
+            st.subheader("🎉 ¡Evaluación Finalizada! 🎉")
+            st.metric(label="Nota Final Promedio", value=f"{promedio_final:.1f}/5")
+            
+            if promedio_final >= 3.0:
+                st.success("¡Felicidades! 🎉 Has Aprobado la evaluación.")
             else:
-                with st.spinner("Evaluando tu respuesta..."):
-                    try:
-                        rag_chain = get_qa_chain(st.session_state.vector_store)
-                        evaluation = grade_answer(rag_chain, user_answer, st.session_state.quiz_state["correct_answer"])
-                        st.subheader("Resultado de la Evaluación")
-                        st.write(evaluation)
-                        
-                        # Simular el guardado del puntaje para el tema
-                        if "Calificación:" in evaluation:
-                            score_str = evaluation.split("Calificación: ")[1].split("\n")[0].strip()
-                            try:
-                                score = int(score_str)
-                                st.session_state.temas[st.session_state.quiz_state["topic"]]["evaluado"] = True
-                                st.session_state.temas[st.session_state.quiz_state["topic"]]["puntaje"] = score
-                            except ValueError:
-                                st.warning("No se pudo extraer la calificación. Por favor, revisa el formato de la respuesta.")
-                        
-                        st.session_state.quiz_state["active"] = False
-                        st.session_state.quiz_state["question"] = ""
-                        st.session_state.quiz_state["correct_answer"] = ""
-                        st.session_state.quiz_state["topic"] = ""
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"❌ Ocurrió un error al evaluar la respuesta: {e}")
+                st.error("Lo siento. 😔 No has aprobado la evaluación.")
+                st.warning(f"Ruta de Aprendizaje Personalizada: Te recomendamos repasar el tema '{quiz_data['topic']}' y sus documentos de apoyo para mejorar tus conocimientos.")
+
+            # Actualizar el estado del tema
+            st.session_state.temas[quiz_data["topic"]]["evaluado"] = True
+            st.session_state.temas[quiz_data["topic"]]["puntaje"] = promedio_final
+
+            st.write("---")
+            st.subheader("Resumen de Preguntas y Calificaciones")
+            for i, q in enumerate(quiz_data["questions"]):
+                st.markdown(f"**Pregunta {i+1}:** {q}")
+                st.markdown(f"**Tu Respuesta:** {quiz_data['answers'][i]}")
+                st.markdown(f"**Calificación:** {quiz_data['scores'][i]['score']}/5 - {quiz_data['scores'][i]['feedback']}")
+                st.write("---")
+            
+            # Botón para salir del quiz
+            if st.button("Finalizar y Volver al Menú"):
+                st.session_state.current_quiz["active"] = False
+                st.rerun()
