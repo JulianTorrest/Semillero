@@ -221,8 +221,6 @@ if "current_quiz" not in st.session_state:
         "current_q_index": 0,
         "final_score": 0
     }
-if "learning_paths" not in st.session_state:
-    st.session_state.learning_paths = {}
 
 load_users()
 
@@ -232,8 +230,8 @@ def get_topics_from_files(uploaded_files):
         topic_name = os.path.splitext(file.name)[0].replace("_", " ").title()
         if topic_name not in st.session_state.temas:
             st.session_state.temas[topic_name] = {"evaluado": False, "puntaje": 0, "contenido_cargado": True}
-        if topic_name not in st.session_state.learning_paths:
-            st.session_state.learning_paths[topic_name] = None
+        # Asegurarse de que el tema cargado sea marcado como tal
+        st.session_state.temas[topic_name]["contenido_cargado"] = True
 
 # --- Barra Lateral (Menú y Perfil de Usuario) ---
 with st.sidebar:
@@ -470,13 +468,10 @@ else:
         st.write("---")
         st.subheader(f"Ruta de Aprendizaje: {selected_path_topic}")
         
-        if st.session_state.temas.get(selected_path_topic, {}).get("contenido_cargado") and st.session_state.vector_store is not None:
-            with st.spinner("Generando contenido de la ruta de aprendizaje..."):
-                rag_chain = get_qa_chain(st.session_state.vector_store)
-                content = generate_learning_path_content(rag_chain, selected_path_topic)
-            st.write(content)
-        else:
-            st.info("Este tema aún no ha sido cargado o procesado.")
+        with st.spinner("Generando contenido de la ruta de aprendizaje..."):
+            rag_chain = get_qa_chain(st.session_state.vector_store)
+            content = generate_learning_path_content(rag_chain, selected_path_topic)
+        st.write(content)
 
 # --- Módulo de Simulación de Casos ---
 st.header("5. Simulación de Casos")
